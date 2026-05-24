@@ -3,7 +3,5 @@ builder = "dockerfile"
 
 [deploy]
 startCommand = "node dist/server.js"
-healthcheckPath = "/"
-healthcheckTimeout = 300
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 10
