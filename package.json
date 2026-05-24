@@ -5,7 +5,6 @@
   "scripts": {
     "build": "next build",
     "dev": "bash ./scripts/dev.sh",
-    "preinstall": "npx only-allow pnpm || true",
     "lint": "eslint",
     "lint:build": "eslint . --quiet",
     "start": "node dist/server.js",
