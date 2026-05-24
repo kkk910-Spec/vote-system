@@ -1,6 +1,5 @@
 [build]
-builder = "nixpacks"
-buildCommand = "pnpm install && pnpm next build && pnpm tsup src/server.ts --format esm --platform node --target node20 --out-dir dist --no-splitting --no-minify"
+builder = "dockerfile"
 
 [deploy]
 startCommand = "node dist/server.js"
