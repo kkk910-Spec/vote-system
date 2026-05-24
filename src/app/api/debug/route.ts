@@ -7,6 +7,11 @@ export async function GET() {
 
   // 1. 检查环境变量
   results.env_check = {
+    DB_HOST: process.env.DB_HOST || 'NOT SET',
+    DB_PORT: process.env.DB_PORT || 'NOT SET',
+    DB_USER: process.env.DB_USER || 'NOT SET',
+    DB_PASSWORD_set: !!process.env.DB_PASSWORD,
+    DB_NAME: process.env.DB_NAME || 'NOT SET',
     DATABASE_URL_set: !!process.env.DATABASE_URL,
     NODE_ENV: process.env.NODE_ENV,
   };
@@ -16,9 +21,11 @@ export async function GET() {
     const db = getDb();
     const testQuery = await db`SELECT 1 as test`;
     results.db_connection = 'OK';
+    results.db_test_result = testQuery;
   } catch (error: any) {
     results.db_connection = 'FAILED';
     results.db_error = error?.message;
+    results.db_error_code = error?.code;
     return NextResponse.json(results, { status: 500 });
   }
 
@@ -48,8 +55,6 @@ export async function GET() {
   try {
     const hash = createHash('sha256').update('admin123').digest('hex');
     results.test_hash = hash;
-    results.expected_hash = '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9';
-    results.hash_match = hash === '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9';
   } catch (error: any) {
     results.hash_error = error?.message;
   }
