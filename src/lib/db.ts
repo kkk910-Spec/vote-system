@@ -6,15 +6,19 @@ let _sql: ReturnType<typeof postgres> | null = null;
 
 export function getDb() {
   if (!_sql) {
-    const databaseUrl = process.env.DATABASE_URL || process.env.COZE_DATABASE_URL || '';
+    // 优先使用直连 URL，备选 pooler URL
+    const databaseUrl = process.env.DATABASE_URL || process.env.COZE_DATABASE_URL || process.env.DATABASE_DIRECT_URL || '';
     if (!databaseUrl) {
       throw new Error('DATABASE_URL is not configured');
     }
+    
+    const isPooler = databaseUrl.includes(':6543');
+    
     _sql = postgres(databaseUrl, {
       ssl: 'require',
-      max: 3,
-      idle_timeout: 20,
-      connect_timeout: 10,
+      max: isPooler ? 1 : 3,  // pooler 模式下减少连接数
+      idle_timeout: 10,
+      connect_timeout: 15,
     });
   }
   return _sql;
