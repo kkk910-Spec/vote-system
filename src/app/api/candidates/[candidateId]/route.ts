@@ -15,7 +15,7 @@ export async function PATCH(
     let paramIndex = 1;
 
     if (body.name !== undefined) {
-      updates.push(`name = $${paramIndex++}`);
+      updates.push(`title = $${paramIndex++}`);
       values.push(body.name);
     }
     if (body.description !== undefined) {

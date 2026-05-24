@@ -32,8 +32,10 @@ export async function POST(request: Request) {
 
     // 检查账号是否被锁定
     if (user.locked_until && new Date(user.locked_until) > new Date()) {
+      const remainingMs = new Date(user.locked_until).getTime() - Date.now();
+      const remainingMinutes = Math.ceil(remainingMs / 60000);
       return NextResponse.json(
-        { error: '账号已被锁定，请稍后再试' },
+        { error: '账号已被锁定，请稍后再试', locked: true, remainingMinutes },
         { status: 403 }
       );
     }
@@ -70,16 +72,16 @@ export async function POST(request: Request) {
     // 更新登录时间和重置失败次数
     await db`
       UPDATE users
-      SET last_login_at = ${new Date().toISOString()},
+      SET last_login_at = NOW(),
           login_fail_count = 0,
           locked_until = NULL
       WHERE id = ${user.id}
     `;
 
-    // 返回用户信息（不含密码）
+    // 返回用户信息（不含密码），并设置 cookie
     const { password: _, ...userWithoutPassword } = user;
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       user: {
         ...userWithoutPassword,
@@ -87,10 +89,22 @@ export async function POST(request: Request) {
         locked_until: null,
       },
     });
-  } catch (error) {
-    console.error('Login error:', error);
+
+    // 设置 user_id cookie，7天过期
+    response.cookies.set('user_id', user.id, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60, // 7天
+      path: '/',
+    });
+
+    return response;
+  } catch (error: any) {
+    console.error('Login error:', error?.message || error);
+    console.error('Login error stack:', error?.stack);
     return NextResponse.json(
-      { error: '登录失败' },
+      { error: '登录失败', detail: error?.message || '未知错误' },
       { status: 500 }
     );
   }

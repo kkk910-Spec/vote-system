@@ -15,7 +15,7 @@ export async function GET(
           json_agg(
             json_build_object(
               'id', vo.id,
-              'name', vo.name,
+              'name', vo.title,
               'image_url', vo.image_url,
               'vote_count', vo.vote_count,
               'description', vo.description
@@ -72,8 +72,8 @@ export async function PUT(
       // 插入新选项
       for (const option of body.options) {
         await db`
-          INSERT INTO vote_options (vote_id, name, image_url, description, vote_count)
-          VALUES (${id}, ${option.name}, ${option.image_url || null}, ${option.description || ''}, ${option.vote_count || 0})
+          INSERT INTO vote_options (vote_id, title, image_url, description, vote_count)
+          VALUES (${id}, ${option.name || option.title}, ${option.image_url || null}, ${option.description || ''}, ${option.vote_count || 0})
         `;
       }
     }
@@ -85,7 +85,7 @@ export async function PUT(
           json_agg(
             json_build_object(
               'id', vo.id,
-              'name', vo.name,
+              'name', vo.title,
               'image_url', vo.image_url,
               'vote_count', vo.vote_count,
               'description', vo.description

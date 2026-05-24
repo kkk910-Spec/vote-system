@@ -10,7 +10,7 @@ export async function GET() {
           json_agg(
             json_build_object(
               'id', vo.id,
-              'name', vo.name,
+              'name', vo.title,
               'image_url', vo.image_url,
               'vote_count', vo.vote_count,
               'description', vo.description
@@ -53,8 +53,8 @@ export async function POST(request: Request) {
     if (options && options.length > 0) {
       for (const option of options) {
         await db`
-          INSERT INTO vote_options (vote_id, name, image_url, description, vote_count)
-          VALUES (${vote.id}, ${option.name}, ${option.image_url || null}, ${option.description || ''}, 0)
+          INSERT INTO vote_options (vote_id, title, image_url, description, vote_count)
+          VALUES (${vote.id}, ${option.name || option.title}, ${option.image_url || null}, ${option.description || ''}, 0)
         `;
       }
     }
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
           json_agg(
             json_build_object(
               'id', vo.id,
-              'name', vo.name,
+              'name', vo.title,
               'image_url', vo.image_url,
               'vote_count', vo.vote_count,
               'description', vo.description

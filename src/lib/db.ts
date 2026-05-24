@@ -11,16 +11,13 @@ export function getDb() {
     }
     _sql = postgres(databaseUrl, {
       ssl: 'require',
-      max: 5,
+      max: 3,
       idle_timeout: 20,
       connect_timeout: 10,
     });
   }
   return _sql;
 }
-
-// 导出 sql 作为 getDb() 的快捷方式
-export const sql = getDb();
 
 // SHA-256 哈希函数
 export async function hashPassword(password: string): Promise<string> {

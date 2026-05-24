@@ -24,8 +24,8 @@ export async function POST(request: Request) {
     const { vote_id, agent_id, code, max_uses } = body;
 
     const result = await db`
-      INSERT INTO agent_links (vote_id, agent_id, code, max_uses, used_count)
-      VALUES (${vote_id}, ${agent_id}, ${code}, ${max_uses || 0}, 0)
+      INSERT INTO agent_links (vote_id, agent_id, link_code)
+      VALUES (${vote_id}, ${agent_id}, ${code})
       RETURNING *
     `;
 

@@ -10,7 +10,7 @@ export async function GET(
     const db = getDb();
 
     const candidates = await db`
-      SELECT * FROM vote_options WHERE vote_id = ${id} ORDER BY id
+      SELECT id, vote_id, title as name, description, image_url, vote_count, order_num, sms_content, created_at FROM vote_options WHERE vote_id = ${id} ORDER BY id
     `;
 
     return NextResponse.json({ candidates });
@@ -30,8 +30,8 @@ export async function POST(
     const db = getDb();
 
     const result = await db`
-      INSERT INTO vote_options (vote_id, name, image_url, description, vote_count)
-      VALUES (${id}, ${body.name}, ${body.image_url || null}, ${body.description || ''}, 0)
+      INSERT INTO vote_options (vote_id, title, image_url, description, vote_count)
+      VALUES (${id}, ${body.name || body.title}, ${body.image_url || null}, ${body.description || ''}, 0)
       RETURNING *
     `;
 

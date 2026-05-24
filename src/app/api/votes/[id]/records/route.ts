@@ -10,7 +10,7 @@ export async function GET(
     const db = getDb();
 
     const records = await db`
-      SELECT vr.*, vo.name as option_name
+      SELECT vr.*, vo.title as option_name
       FROM vote_records vr
       LEFT JOIN vote_options vo ON vr.option_id = vo.id
       WHERE vr.vote_id = ${id}
