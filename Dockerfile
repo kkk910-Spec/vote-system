@@ -6,10 +6,10 @@ WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # 复制 package.json
-COPY package.json pnpm-lock.yaml* ./
+COPY package.json ./
 
-# 安装依赖
-RUN pnpm install --frozen-lockfile
+# 安装依赖（不使用 frozen-lockfile）
+RUN pnpm install
 
 # 复制源代码
 COPY . .
