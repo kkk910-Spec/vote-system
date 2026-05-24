@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { getDb } from '@/lib/db';
+import { createHash } from 'crypto';
 
 export interface User {
   id: string;
@@ -8,16 +9,12 @@ export interface User {
   name: string | null;
 }
 
-export async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+export function hashPassword(password: string): string {
+  return createHash('sha256').update(password).digest('hex');
 }
 
 export async function verifyPassword(password: string, hashedPassword: string): Promise<boolean> {
-  const hash = await hashPassword(password);
+  const hash = hashPassword(password);
   return hash === hashedPassword;
 }
 

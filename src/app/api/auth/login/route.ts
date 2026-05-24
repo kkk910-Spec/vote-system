@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getDb, hashPassword } from '@/lib/db';
+import { getDb } from '@/lib/db';
+import { createHash } from 'crypto';
+
+// 使用 Node.js 原生 crypto 模块进行 SHA-256 哈希（比 Web Crypto API 更可靠）
+function hashPassword(password: string): string {
+  return createHash('sha256').update(password).digest('hex');
+}
 
 export async function POST(request: Request) {
   try {
@@ -41,7 +47,7 @@ export async function POST(request: Request) {
     }
 
     // 验证密码
-    const hashedPassword = await hashPassword(password);
+    const hashedPassword = hashPassword(password);
     if (user.password !== hashedPassword) {
       // 更新失败次数
       const newFailCount = (user.login_fail_count || 0) + 1;

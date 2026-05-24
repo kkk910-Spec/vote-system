@@ -1,6 +1,7 @@
 import postgres from 'postgres';
+import { createHash } from 'crypto';
 
-// PostgreSQL 直连客户端（用于 Vercel 等非 Coze 环境）
+// PostgreSQL 直连客户端
 let _sql: ReturnType<typeof postgres> | null = null;
 
 export function getDb() {
@@ -19,11 +20,7 @@ export function getDb() {
   return _sql;
 }
 
-// SHA-256 哈希函数
-export async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+// 使用 Node.js 原生 crypto 进行 SHA-256 哈希（比 Web Crypto API 更可靠）
+export function hashPassword(password: string): string {
+  return createHash('sha256').update(password).digest('hex');
 }
