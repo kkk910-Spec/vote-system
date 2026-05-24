@@ -1,23 +1,26 @@
 import postgres from 'postgres';
 
 // PostgreSQL 直连客户端（用于 Vercel 等非 Coze 环境）
-let sql: ReturnType<typeof postgres> | null = null;
+let _sql: ReturnType<typeof postgres> | null = null;
 
 export function getDb() {
-  if (!sql) {
+  if (!_sql) {
     const databaseUrl = process.env.DATABASE_URL || process.env.COZE_DATABASE_URL || '';
     if (!databaseUrl) {
       throw new Error('DATABASE_URL is not configured');
     }
-    sql = postgres(databaseUrl, {
+    _sql = postgres(databaseUrl, {
       ssl: 'require',
       max: 5,
       idle_timeout: 20,
       connect_timeout: 10,
     });
   }
-  return sql;
+  return _sql;
 }
+
+// 导出 sql 作为 getDb() 的快捷方式
+export const sql = getDb();
 
 // SHA-256 哈希函数
 export async function hashPassword(password: string): Promise<string> {
