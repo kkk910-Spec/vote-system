@@ -1,59 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-// 内存缓存，避免重复请求相同图片
-const imageCache = new Map<string, { buffer: ArrayBuffer; contentType: string; timestamp: number }>();
-const CACHE_TTL = 60 * 60 * 1000; // 1小时
+import { getDb } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
-  const url = request.nextUrl.searchParams.get('url');
-  
-  if (!url) {
-    return NextResponse.json({ error: '缺少图片URL' }, { status: 400 });
-  }
-
-  // 检查缓存
-  const cached = imageCache.get(url);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return new NextResponse(cached.buffer, {
-      headers: {
-        'Content-Type': cached.contentType,
-        'Cache-Control': 'public, max-age=86400',
-        'X-Cache': 'HIT',
-      },
-    });
-  }
-
   try {
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      },
-    });
+    const id = request.nextUrl.searchParams.get('id');
 
-    if (!response.ok) {
-      return NextResponse.json({ error: '获取图片失败' }, { status: response.status });
+    if (!id) {
+      return NextResponse.json({ error: '缺少图片ID' }, { status: 400 });
     }
 
-    const contentType = response.headers.get('content-type') || 'image/png';
-    const imageBuffer = await response.arrayBuffer();
+    const sql = getDb();
+    const rows = await sql`SELECT data, content_type FROM uploaded_images WHERE id = ${id}`;
 
-    // 存入缓存（限制缓存大小）
-    if (imageCache.size < 50 && imageBuffer.byteLength < 5 * 1024 * 1024) {
-      imageCache.set(url, { 
-        buffer: imageBuffer, 
-        contentType, 
-        timestamp: Date.now() 
-      });
+    if (rows.length === 0) {
+      return NextResponse.json({ error: '图片不存在' }, { status: 404 });
     }
 
-    return new NextResponse(imageBuffer, {
+    const row = rows[0];
+    const buffer = Buffer.from(row.data as string, 'base64');
+
+    return new NextResponse(buffer, {
       headers: {
-        'Content-Type': contentType,
-        'Cache-Control': 'public, max-age=86400',
-        'X-Cache': 'MISS',
+        'Content-Type': row.content_type as string || 'image/png',
+        'Cache-Control': 'public, max-age=31536000, immutable',
       },
     });
-  } catch {
-    return NextResponse.json({ error: '代理图片失败' }, { status: 500 });
+  } catch (error) {
+    console.error('Proxy image error:', error);
+    return NextResponse.json({ error: '获取图片失败' }, { status: 500 });
   }
 }

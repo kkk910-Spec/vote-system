@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { getDb } from '@/lib/db';
 import { hashPassword } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
@@ -21,18 +21,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '新密码长度至少6位' }, { status: 400 });
     }
     
-    const client = getSupabaseClient();
+    const db = getDb();
     
     // 获取用户信息
-    const { data: user, error: userError } = await client
-      .from('users')
-      .select('id, password')
-      .eq('id', userId)
-      .single();
+    const users = await db`SELECT id, password FROM users WHERE id = ${userId}`;
     
-    if (userError || !user) {
+    if (users.length === 0) {
       return NextResponse.json({ error: '用户不存在' }, { status: 404 });
     }
+    
+    const user = users[0];
     
     // 验证旧密码
     const hashedOldPassword = await hashPassword(oldPassword);
@@ -44,17 +42,7 @@ export async function POST(request: NextRequest) {
     // 更新密码
     const hashedNewPassword = await hashPassword(newPassword);
     
-    const { error: updateError } = await client
-      .from('users')
-      .update({
-        password: hashedNewPassword,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', userId);
-    
-    if (updateError) {
-      return NextResponse.json({ error: '修改密码失败' }, { status: 500 });
-    }
+    await db`UPDATE users SET password = ${hashedNewPassword}, updated_at = NOW() WHERE id = ${userId}`;
     
     return NextResponse.json({ success: true, message: '密码修改成功' });
   } catch {

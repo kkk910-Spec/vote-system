@@ -1,36 +1,33 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { NextResponse } from 'next/server';
+import { getDb } from '@/lib/db';
 
-// 记录推广链接点击
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
+    const db = getDb();
     const body = await request.json();
-    const { link_code } = body;
-    
-    if (!link_code) {
-      return NextResponse.json({ success: false });
+    const { link_id, visitor_id } = body;
+
+    if (!link_id || !visitor_id) {
+      return NextResponse.json({ error: '缺少参数' }, { status: 400 });
     }
-    
-    const client = getSupabaseClient();
-    
-    // 获取当前点击数
-    const { data: link } = await client
-      .from('agent_links')
-      .select('click_count')
-      .eq('link_code', link_code)
-      .single();
-    
-    if (link) {
-      // 递增点击数
-      await client
-        .from('agent_links')
-        .update({ click_count: (link.click_count || 0) + 1 })
-        .eq('link_code', link_code);
+
+    const link = await db`
+      SELECT * FROM agent_links WHERE id = ${link_id}
+    `;
+
+    if (link.length === 0) {
+      return NextResponse.json({ error: '链接不存在' }, { status: 404 });
     }
-    
+
+    await db`
+      INSERT INTO click_tracks (link_id, visitor_id, clicked_at)
+      VALUES (${link_id}, ${visitor_id}, NOW())
+      ON CONFLICT DO NOTHING
+    `;
+
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('记录点击失败:', error);
-    return NextResponse.json({ success: false });
+    console.error('Track click error:', error);
+    return NextResponse.json({ error: '记录点击失败' }, { status: 500 });
   }
 }

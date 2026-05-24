@@ -1,76 +1,97 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { hashPassword, getCurrentUser } from '@/lib/auth';
+import { NextResponse } from 'next/server';
+import { getDb, hashPassword } from '@/lib/db';
 
-// 更新用户
-export async function PUT(
-  request: NextRequest,
+export async function GET(
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const user = await getCurrentUser();
-    if (!user || user.role !== 'admin') {
-      return NextResponse.json({ error: '需要管理员权限' }, { status: 403 });
+    const db = getDb();
+    const users = await db`
+      SELECT id, username, role, is_active, name, created_at, last_login_at
+      FROM users WHERE id = ${id}
+    `;
+    if (users.length === 0) {
+      return NextResponse.json({ error: '用户不存在' }, { status: 404 });
     }
-    
-    const body = await request.json();
-    const { username, password, role, name, phone, is_active } = body;
-    
-    const client = getSupabaseClient();
-    const updateData: Record<string, unknown> = {};
-    
-    if (username !== undefined) updateData.username = username;
-    if (password) updateData.password = await hashPassword(password);
-    if (role !== undefined) updateData.role = role;
-    if (name !== undefined) updateData.name = name;
-    if (phone !== undefined) updateData.phone = phone;
-    if (is_active !== undefined) updateData.is_active = is_active;
-    
-    const { error } = await client
-      .from('users')
-      .update(updateData)
-      .eq('id', id);
-    
-    if (error) {
-      return NextResponse.json({ error: '更新用户失败' }, { status: 500 });
-    }
-    
-    return NextResponse.json({ success: true });
-  } catch {
-    return NextResponse.json({ error: '服务器错误' }, { status: 500 });
+    return NextResponse.json({ user: users[0] });
+  } catch (error) {
+    console.error('Get user error:', error);
+    return NextResponse.json({ error: '获取用户信息失败' }, { status: 500 });
   }
 }
 
-// 删除用户
-export async function DELETE(
-  request: NextRequest,
+export async function PUT(
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const user = await getCurrentUser();
-    if (!user || user.role !== 'admin') {
-      return NextResponse.json({ error: '需要管理员权限' }, { status: 403 });
+    const body = await request.json();
+    const db = getDb();
+
+    const updates: string[] = [];
+    const values: any[] = [];
+
+    if (body.name !== undefined) {
+      updates.push('name = $' + (values.length + 1));
+      values.push(body.name);
     }
-    
-    // 不能删除自己
-    if (id === user.id) {
-      return NextResponse.json({ error: '不能删除自己的账号' }, { status: 400 });
+    if (body.role !== undefined) {
+      updates.push('role = $' + (values.length + 1));
+      values.push(body.role);
     }
-    
-    const client = getSupabaseClient();
-    const { error } = await client
-      .from('users')
-      .delete()
-      .eq('id', id);
-    
-    if (error) {
-      return NextResponse.json({ error: '删除用户失败' }, { status: 500 });
+    if (body.is_active !== undefined) {
+      updates.push('is_active = $' + (values.length + 1));
+      values.push(body.is_active);
     }
-    
+    if (body.password) {
+      const hashedPassword = await hashPassword(body.password);
+      updates.push('password = $' + (values.length + 1));
+      values.push(hashedPassword);
+    }
+
+    if (updates.length === 0) {
+      return NextResponse.json({ error: '没有更新内容' }, { status: 400 });
+    }
+
+    values.push(id);
+
+    const result = await db`
+      UPDATE users SET ${db(updates.join(', '))}
+      WHERE id = ${id}
+      RETURNING id, username, role, name, is_active, created_at
+    `;
+
+    if (result.length === 0) {
+      return NextResponse.json({ error: '用户不存在' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, user: result[0] });
+  } catch (error) {
+    console.error('Update user error:', error);
+    return NextResponse.json({ error: '更新用户失败' }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const db = getDb();
+    const result = await db`
+      DELETE FROM users WHERE id = ${id}
+      RETURNING id
+    `;
+    if (result.length === 0) {
+      return NextResponse.json({ error: '用户不存在' }, { status: 404 });
+    }
     return NextResponse.json({ success: true });
-  } catch {
-    return NextResponse.json({ error: '服务器错误' }, { status: 500 });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    return NextResponse.json({ error: '删除用户失败' }, { status: 500 });
   }
 }
