@@ -1,7 +1,7 @@
 {
   "framework": "nextjs",
-  "installCommand": "corepack enable && corepack prepare pnpm@9.15.4 --activate && pnpm install",
-  "buildCommand": "pnpm next build",
+  "installCommand": "npm install",
+  "buildCommand": "npm run build",
   "regions": ["hkg1"],
   "functions": {
     "src/app/api/**/*.ts": {
