@@ -14,12 +14,18 @@ export async function GET() {
     `;
 
     // 合并选项到投票
-    const votesWithOptions = votes.map((vote: Record<string, unknown>) => ({
-      ...vote,
-      options: options.filter((opt: Record<string, unknown>) => opt.vote_id === vote.id),
-    }));
+    const votesWithOptions = votes.map((vote: Record<string, unknown>) => {
+      const voteOptions = options.filter((opt: Record<string, unknown>) => opt.vote_id === vote.id);
+      // Add 'name' alias for frontend compatibility (DB column is 'title')
+      const candidates = voteOptions.map((o: Record<string, unknown>) => ({ ...o, name: o.title }));
+      return {
+        ...vote,
+        options: candidates,
+        candidates,
+      };
+    });
 
-    return NextResponse.json({ data: votesWithOptions });
+    return NextResponse.json({ votes: votesWithOptions });
   } catch {
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
@@ -76,7 +82,7 @@ export async function POST(request: NextRequest) {
       SELECT * FROM vote_options WHERE vote_id = ${vote.id as string}
     `;
 
-    return NextResponse.json({ data: { ...fullVoteRows[0], options: voteOptions } }, { status: 201 });
+    return NextResponse.json({ success: true, vote: { ...fullVoteRows[0], options: voteOptions, candidates: voteOptions } }, { status: 201 });
   } catch {
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }

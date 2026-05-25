@@ -22,7 +22,7 @@ export async function GET() {
       `;
     }
 
-    return NextResponse.json({ data });
+    return NextResponse.json({ links: data });
   } catch {
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       RETURNING *
     `;
 
-    return NextResponse.json({ data: data[0] });
+    return NextResponse.json({ success: true, link: data[0] });
   } catch {
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }

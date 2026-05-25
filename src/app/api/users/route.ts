@@ -11,10 +11,10 @@ export async function GET() {
 
     const sql = getDb();
     const data = await sql`
-      SELECT id, username, role, is_active, created_at FROM users ORDER BY created_at ASC
+      SELECT id, username, role, is_active, created_at, name, phone FROM users ORDER BY created_at ASC
     `;
 
-    return NextResponse.json({ data });
+    return NextResponse.json({ users: data });
   } catch {
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
       RETURNING id, username, role, is_active, created_at
     `;
 
-    return NextResponse.json({ data: data[0] });
+    return NextResponse.json({ success: true, user: data[0] });
   } catch {
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }

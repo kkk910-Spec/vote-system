@@ -21,7 +21,9 @@ export async function GET(
       SELECT * FROM vote_options WHERE vote_id = ${id}
     `;
 
-    return NextResponse.json({ data: { ...voteRows[0], options } });
+    // Add 'name' alias for frontend compatibility (DB column is 'title')
+    const candidates = options.map((o: Record<string, unknown>) => ({ ...o, name: o.title }));
+    return NextResponse.json({ vote: { ...voteRows[0], options: candidates, candidates } });
   } catch {
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
@@ -59,7 +61,7 @@ export async function PUT(
       return NextResponse.json({ error: '更新失败' }, { status: 500 });
     }
 
-    return NextResponse.json({ data: updated[0] });
+    return NextResponse.json({ success: true, vote: updated[0] });
   } catch {
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }

@@ -13,7 +13,7 @@ export async function GET(
       SELECT * FROM vote_records WHERE vote_id = ${id} ORDER BY created_at DESC
     `;
 
-    return NextResponse.json({ data: records });
+    return NextResponse.json({ records });
   } catch {
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }

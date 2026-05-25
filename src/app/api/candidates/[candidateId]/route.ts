@@ -10,11 +10,19 @@ export async function PUT(
     const body = await request.json();
     const sql = getDb();
 
+    // Frontend sends 'name' but DB column is 'title'
+    const title = body.name || body.title;
+    const description = body.description;
+    const image_url = body.image_url;
+    const vote_count = body.vote_count;
+    const sms_content = body.sms_content;
+
     const updateData: Record<string, unknown> = {};
-    if (body.title !== undefined) updateData.title = body.title;
-    if (body.description !== undefined) updateData.description = body.description;
-    if (body.image_url !== undefined) updateData.image_url = body.image_url;
-    if (body.vote_count !== undefined) updateData.vote_count = body.vote_count;
+    if (title !== undefined) updateData.title = title;
+    if (description !== undefined) updateData.description = description;
+    if (image_url !== undefined) updateData.image_url = image_url;
+    if (vote_count !== undefined) updateData.vote_count = vote_count;
+    if (sms_content !== undefined) updateData.sms_content = sms_content;
 
     const data = await sql`
       UPDATE vote_options SET ${sql(updateData)} WHERE id = ${candidateId}
@@ -25,7 +33,9 @@ export async function PUT(
       return NextResponse.json({ error: '更新失败' }, { status: 500 });
     }
 
-    return NextResponse.json({ data: data[0] });
+    // Return with 'name' alias for frontend compatibility
+    const result = { ...data[0], name: data[0].title };
+    return NextResponse.json({ success: true, candidate: result });
   } catch {
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }

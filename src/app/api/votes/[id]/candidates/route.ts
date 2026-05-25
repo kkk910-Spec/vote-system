@@ -13,7 +13,9 @@ export async function GET(
       SELECT * FROM vote_options WHERE vote_id = ${id} ORDER BY created_at ASC
     `;
 
-    return NextResponse.json({ data: options });
+    // Add 'name' alias for frontend compatibility (DB column is 'title')
+    const candidates = options.map((o: Record<string, unknown>) => ({ ...o, name: o.title }));
+    return NextResponse.json({ candidates });
   } catch {
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
@@ -31,8 +33,10 @@ export async function POST(
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
+    // Frontend sends 'name' but DB column is 'title'
     const body = await request.json();
-    const { title, description, image_url } = body;
+    const title = body.name || body.title;
+    const { description, image_url, sms_content } = body;
 
     if (!title) {
       return NextResponse.json({ error: '请填写选项标题' }, { status: 400 });
@@ -41,12 +45,14 @@ export async function POST(
     const sql = getDb();
 
     const data = await sql`
-      INSERT INTO vote_options (vote_id, title, description, image_url)
-      VALUES (${id}, ${title}, ${description || ''}, ${image_url || ''})
+      INSERT INTO vote_options (vote_id, title, description, image_url, sms_content)
+      VALUES (${id}, ${title}, ${description || ''}, ${image_url || ''}, ${sms_content || ''})
       RETURNING *
     `;
 
-    return NextResponse.json({ data: data[0] }, { status: 201 });
+    // Return with 'name' alias for frontend compatibility
+    const result = { ...data[0], name: data[0].title };
+    return NextResponse.json({ success: true, candidate: result }, { status: 201 });
   } catch {
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
