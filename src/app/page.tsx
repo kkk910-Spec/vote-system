@@ -354,7 +354,7 @@ function HomePageContent() {
               {candidate.image_url ? (
                 <>
                   <img
-                    src={`/api/proxy-image?url=${encodeURIComponent(candidate.image_url)}`}
+                    src={candidate.image_url}
                     alt={candidate.name}
                     className="w-full h-full object-cover"
                     loading="lazy"
