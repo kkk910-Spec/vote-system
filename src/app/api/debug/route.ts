@@ -19,12 +19,11 @@ export async function GET() {
     SUPABASE_ANON_KEY_set: !!process.env.SUPABASE_ANON_KEY,
   };
 
-  // 2. 测试 Supabase REST API (HTTP) - 使用 anon key
+  // 2. 测试 Supabase REST API (HTTP)
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mapmvufwcsobaxwovmms.supabase.co';
   const anonKey = process.env.SUPABASE_ANON_KEY || process.env.COZE_SUPABASE_ANON_KEY;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   
-  // 测试 anon key
   if (anonKey) {
     try {
       const res = await fetch(`${supabaseUrl}/rest/v1/users?select=id,username,role&limit=1`, {
@@ -47,7 +46,6 @@ export async function GET() {
     }
   }
 
-  // 测试 service role key
   if (serviceKey) {
     try {
       const res = await fetch(`${supabaseUrl}/rest/v1/users?select=id,username,role&limit=1`, {
@@ -98,53 +96,27 @@ export async function GET() {
     ];
 
     for (const conn of connections) {
+      let sql: ReturnType<typeof postgres> | null = null;
       try {
-        const sql = postgres(conn.url, { ssl: 'require', max: 1, connect_timeout: 10 });
+        sql = postgres(conn.url, { ssl: 'require', max: 1, connect_timeout: 10 });
         const r = await sql`SELECT 1 as test`;
         (results as Record<string, unknown>)[conn.name] = { status: 'OK', result: JSON.stringify(r) };
-        await sql.end();
       } catch (e) {
         (results as Record<string, unknown>)[conn.name] = { 
           error: (e as Error).message?.substring(0, 200),
           code: (e as {code?: string}).code,
         };
+      } finally {
+        if (sql) {
+          try { await sql.end(); } catch { /* ignore */ }
+        }
       }
     }
   } catch (err) {
     results.tcp_tests = { error: err instanceof Error ? err.message : 'Unknown' };
   }
 
-  // 4. 测试 @neondatabase/serverless HTTP 连接
-  try {
-    const { neon } = await import('@neondatabase/serverless');
-    
-    const neonConns = [
-      {
-        name: 'neon_http_pooler',
-        url: 'postgresql://postgres.mapmvufwcsobaxwovmms:Vote2025Secure@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres',
-      },
-      {
-        name: 'neon_http_direct',
-        url: 'postgresql://postgres:Vote2025Secure@db.mapmvufwcsobaxwovmms.supabase.co:5432/postgres',
-      },
-    ];
-
-    for (const conn of neonConns) {
-      try {
-        const sql = neon(conn.url);
-        const r = await sql`SELECT 1 as test`;
-        (results as Record<string, unknown>)[conn.name] = { status: 'OK', result: JSON.stringify(r) };
-      } catch (e) {
-        (results as Record<string, unknown>)[conn.name] = { 
-          error: (e as Error).message?.substring(0, 200),
-        };
-      }
-    }
-  } catch (err) {
-    results.neon_http_tests = { error: err instanceof Error ? err.message : 'Unknown' };
-  }
-
-  // 5. 测试 Supabase Auth API
+  // 4. 测试 Supabase Auth API
   try {
     const res = await fetch(`${supabaseUrl}/auth/v1/health`);
     const data = await res.text();
