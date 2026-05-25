@@ -53,7 +53,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ error: '缺少图片ID或URL' }, { status: 400 });
   } catch (error) {
-    console.error('[proxy-image] Error:', error);
-    return NextResponse.json({ error: '服务器错误' }, { status: 500 });
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error('[proxy-image] Error:', errMsg);
+    return NextResponse.json({ error: '服务器错误', detail: errMsg }, { status: 500 });
   }
 }
