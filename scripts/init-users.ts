@@ -5,7 +5,7 @@ async function initUsers() {
   // 检查是否已存在用户
   const existing = await db`SELECT id FROM users LIMIT 1`;
   
-  if (existing.length > 0) {
+  if (Array.isArray(existing) && existing.length > 0) {
     console.log('用户已存在，跳过初始化');
     return;
   }
