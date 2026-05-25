@@ -2,9 +2,11 @@ import postgres from 'postgres';
 import { createHash } from 'crypto';
 
 // PostgreSQL 直连 - 通过 Railway 公网代理访问
-let _sql: ReturnType<typeof postgres> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _sql: any = null;
 
-export function getDb() {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function getDb(): any {
   if (!_sql) {
     const databaseUrl = process.env.DATABASE_URL || '';
 
