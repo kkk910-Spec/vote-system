@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers';
-import { getSupabaseAdmin } from '@/lib/supabase';
+import { getDb } from '@/lib/db';
 import { createHash } from 'crypto';
 
 export interface User {
@@ -21,30 +21,30 @@ export async function verifyPassword(password: string, hashedPassword: string): 
 export async function getCurrentUser(): Promise<User | null> {
   const cookieStore = await cookies();
   const userId = cookieStore.get('user_id')?.value;
-  
+
   if (!userId) {
     return null;
   }
-  
-  try {
-    const supabase = getSupabaseAdmin();
-    const { data: users, error } = await supabase
-      .from('users')
-      .select('id, username, role, name')
-      .eq('id', userId)
-      .eq('is_active', true)
-      .limit(1);
 
-    if (error || !users || users.length === 0) {
+  try {
+    const sql = getDb();
+    const users = await sql`
+      SELECT id, username, role, name
+      FROM users
+      WHERE id = ${userId} AND is_active = true
+      LIMIT 1
+    `;
+
+    if (!users || users.length === 0) {
       return null;
     }
-    
+
     const data = users[0];
     return {
-      id: data.id,
-      username: data.username,
+      id: data.id as string,
+      username: data.username as string,
       role: data.role as 'admin' | 'agent',
-      name: data.name,
+      name: data.name as string | null,
     };
   } catch {
     return null;

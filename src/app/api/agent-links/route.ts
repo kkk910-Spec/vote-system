@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase';
+import { getDb } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 
 export async function GET() {
@@ -9,17 +9,17 @@ export async function GET() {
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
-    const supabase = getSupabaseAdmin();
+    const sql = getDb();
 
-    let query = supabase.from('agent_links').select('*');
+    let data;
     if (user.role === 'agent') {
-      query = query.eq('user_id', user.id);
-    }
-
-    const { data, error } = await query.order('created_at', { ascending: false });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      data = await sql`
+        SELECT * FROM agent_links WHERE agent_id = ${user.id} ORDER BY created_at DESC
+      `;
+    } else {
+      data = await sql`
+        SELECT * FROM agent_links ORDER BY created_at DESC
+      `;
     }
 
     return NextResponse.json({ data });
@@ -36,26 +36,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { vote_id, user_id, link_code, max_uses } = body;
-    const supabase = getSupabaseAdmin();
+    const { vote_id, agent_id, link_code, name } = body;
+    const sql = getDb();
 
-    const { data, error } = await supabase
-      .from('agent_links')
-      .insert({
-        vote_id,
-        user_id,
-        link_code,
-        max_uses: max_uses || null,
-        click_count: 0,
-      })
-      .select()
-      .single();
+    const data = await sql`
+      INSERT INTO agent_links (agent_id, vote_id, link_code, click_count, vote_count, name)
+      VALUES (${agent_id}, ${vote_id}, ${link_code}, 0, 0, ${name || null})
+      RETURNING *
+    `;
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ data });
+    return NextResponse.json({ data: data[0] });
   } catch {
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }

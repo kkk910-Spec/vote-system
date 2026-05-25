@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase';
-import { getCurrentUser } from '@/lib/auth';
+import { getDb } from '@/lib/db';
 
 export async function POST(
   request: NextRequest,
@@ -8,86 +7,55 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const user = await getCurrentUser();
     const body = await request.json();
-    const { option_id, voter_name, voter_phone } = body;
+    const { option_id, candidate_id, phone_number, device_id, ip_address, agent_id, source_link } = body;
 
-    if (!option_id) {
+    if (!option_id && !candidate_id) {
       return NextResponse.json({ error: '请选择投票选项' }, { status: 400 });
     }
 
-    const supabase = getSupabaseAdmin();
+    const sql = getDb();
+    const selectedOptionId = option_id || candidate_id;
 
     // 检查投票是否存在且进行中
-    const { data: vote } = await supabase
-      .from('votes')
-      .select('status')
-      .eq('id', id)
-      .single();
+    const voteRows = await sql`
+      SELECT status FROM votes WHERE id = ${id}
+    `;
 
-    if (!vote) {
+    if (!voteRows || voteRows.length === 0) {
       return NextResponse.json({ error: '投票不存在' }, { status: 404 });
     }
-    if (vote.status !== 'active') {
+    if ((voteRows[0].status as string) !== 'active') {
       return NextResponse.json({ error: '投票已结束' }, { status: 400 });
     }
 
-    // 检查是否已投票（同一用户/同一投票）
-    if (user) {
-      const { data: existing } = await supabase
-        .from('vote_records')
-        .select('id')
-        .eq('vote_id', id)
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (existing) {
+    // 检查是否已投票（同一设备/同一投票）
+    if (device_id) {
+      const existing = await sql`
+        SELECT id FROM vote_records 
+        WHERE vote_id = ${id} AND device_id = ${device_id}
+        LIMIT 1
+      `;
+      if (existing && existing.length > 0) {
         return NextResponse.json({ error: '您已经投过票了' }, { status: 400 });
       }
     }
 
     // 记录投票
-    const { error: recordError } = await supabase
-      .from('vote_records')
-      .insert({
-        vote_id: id,
-        option_id,
-        user_id: user?.id || null,
-        voter_name: voter_name || null,
-        voter_phone: voter_phone || null,
-      });
-
-    if (recordError) {
-      return NextResponse.json({ error: recordError.message }, { status: 500 });
-    }
+    await sql`
+      INSERT INTO vote_records (vote_id, option_id, candidate_id, phone_number, device_id, ip_address, agent_id, source_link, voter_ip)
+      VALUES (${id}, ${selectedOptionId}, ${selectedOptionId}, ${phone_number || null}, ${device_id || null}, ${ip_address || null}, ${agent_id || null}, ${source_link || null}, ${ip_address || null})
+    `;
 
     // 更新选项票数
-    const { data: option } = await supabase
-      .from('vote_options')
-      .select('vote_count')
-      .eq('id', option_id)
-      .single();
-
-    if (option) {
-      await supabase
-        .from('vote_options')
-        .update({ vote_count: (option.vote_count || 0) + 1 })
-        .eq('id', option_id);
-    }
+    await sql`
+      UPDATE vote_options SET vote_count = vote_count + 1 WHERE id = ${selectedOptionId}
+    `;
 
     // 更新投票总票数
-    const { data: voteData } = await supabase
-      .from('votes')
-      .select('total_votes')
-      .eq('id', id)
-      .single();
-
-    if (voteData) {
-      await supabase
-        .from('votes')
-        .update({ total_votes: (voteData.total_votes || 0) + 1 })
-        .eq('id', id);
-    }
+    await sql`
+      UPDATE votes SET total_votes = total_votes + 1 WHERE id = ${id}
+    `;
 
     return NextResponse.json({ success: true });
   } catch {

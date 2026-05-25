@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase';
+import { getDb } from '@/lib/db';
 
 export async function PUT(
   request: NextRequest,
@@ -8,7 +8,7 @@ export async function PUT(
   try {
     const { candidateId } = await params;
     const body = await request.json();
-    const supabase = getSupabaseAdmin();
+    const sql = getDb();
 
     const updateData: Record<string, unknown> = {};
     if (body.title !== undefined) updateData.title = body.title;
@@ -16,18 +16,16 @@ export async function PUT(
     if (body.image_url !== undefined) updateData.image_url = body.image_url;
     if (body.vote_count !== undefined) updateData.vote_count = body.vote_count;
 
-    const { data, error } = await supabase
-      .from('vote_options')
-      .update(updateData)
-      .eq('id', candidateId)
-      .select()
-      .single();
+    const data = await sql`
+      UPDATE vote_options SET ${sql(updateData)} WHERE id = ${candidateId}
+      RETURNING *
+    `;
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!data || data.length === 0) {
+      return NextResponse.json({ error: '更新失败' }, { status: 500 });
     }
 
-    return NextResponse.json({ data });
+    return NextResponse.json({ data: data[0] });
   } catch {
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
@@ -39,16 +37,9 @@ export async function DELETE(
 ) {
   try {
     const { candidateId } = await params;
-    const supabase = getSupabaseAdmin();
+    const sql = getDb();
 
-    const { error } = await supabase
-      .from('vote_options')
-      .delete()
-      .eq('id', candidateId);
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    await sql`DELETE FROM vote_options WHERE id = ${candidateId}`;
 
     return NextResponse.json({ success: true });
   } catch {

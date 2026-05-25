@@ -1,32 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase';
-import { getCurrentUser } from '@/lib/auth';
+import { getDb } from '@/lib/db';
 
 export async function GET() {
   try {
-    const supabase = getSupabaseAdmin();
-    const { data: votes, error } = await supabase
-      .from('votes')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const sql = getDb();
+    const votes = await sql`
+      SELECT * FROM votes ORDER BY created_at DESC
+    `;
 
     // 获取所有选项
-    const { data: options, error: optError } = await supabase
-      .from('vote_options')
-      .select('*');
-
-    if (optError) {
-      return NextResponse.json({ error: optError.message }, { status: 500 });
-    }
+    const options = await sql`
+      SELECT * FROM vote_options
+    `;
 
     // 合并选项到投票
-    const votesWithOptions = (votes || []).map((vote: Record<string, unknown>) => ({
+    const votesWithOptions = votes.map((vote: Record<string, unknown>) => ({
       ...vote,
-      options: (options || []).filter((opt: Record<string, unknown>) => opt.vote_id === vote.id),
+      options: options.filter((opt: Record<string, unknown>) => opt.vote_id === vote.id),
     }));
 
     return NextResponse.json({ data: votesWithOptions });
@@ -37,6 +27,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const { getCurrentUser } = await import('@/lib/auth');
     const user = await getCurrentUser();
     if (!user) {
       return NextResponse.json({ error: '未登录' }, { status: 401 });
@@ -52,63 +43,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '请填写投票标题' }, { status: 400 });
     }
 
-    const supabase = getSupabaseAdmin();
+    const sql = getDb();
 
     // 创建投票
-    const { data: vote, error } = await supabase
-      .from('votes')
-      .insert({
-        title,
-        description: description || '',
-        start_time: start_time || null,
-        end_time: end_time || null,
-        is_public: is_public !== false,
-        status: status || 'active',
-        created_by: user.id,
-      })
-      .select()
-      .single();
+    const voteRows = await sql`
+      INSERT INTO votes (title, description, start_time, end_time, is_public, status, created_by)
+      VALUES (${title}, ${description || ''}, ${start_time || null}, ${end_time || null}, ${is_public !== false}, ${status || 'active'}, ${user.id})
+      RETURNING *
+    `;
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const vote = voteRows[0];
 
     // 创建选项
     if (options && options.length > 0) {
-      const optionRecords = options.map((opt: string | Record<string, unknown>) => {
-        if (typeof opt === 'string') {
-          return { vote_id: vote.id, title: opt };
-        }
-        return { 
-          vote_id: vote.id, 
-          title: (opt as Record<string, unknown>).title || (opt as Record<string, unknown>).name || '',
-          description: (opt as Record<string, unknown>).description || '',
-          image_url: (opt as Record<string, unknown>).image_url || '',
-        };
-      });
+      for (const opt of options) {
+        const optTitle = typeof opt === 'string' ? opt : ((opt as Record<string, unknown>).title || (opt as Record<string, unknown>).name || '');
+        const optDesc = typeof opt === 'string' ? '' : ((opt as Record<string, unknown>).description || '');
+        const optImage = typeof opt === 'string' ? '' : ((opt as Record<string, unknown>).image_url || '');
 
-      const { error: optError } = await supabase
-        .from('vote_options')
-        .insert(optionRecords);
-
-      if (optError) {
-        return NextResponse.json({ error: optError.message }, { status: 500 });
+        await sql`
+          INSERT INTO vote_options (vote_id, title, description, image_url)
+          VALUES (${vote.id as string}, ${optTitle}, ${optDesc}, ${optImage})
+        `;
       }
     }
 
     // 重新获取带选项的投票
-    const { data: fullVote } = await supabase
-      .from('votes')
-      .select('*')
-      .eq('id', vote.id)
-      .single();
+    const fullVoteRows = await sql`
+      SELECT * FROM votes WHERE id = ${vote.id as string}
+    `;
+    const voteOptions = await sql`
+      SELECT * FROM vote_options WHERE vote_id = ${vote.id as string}
+    `;
 
-    const { data: voteOptions } = await supabase
-      .from('vote_options')
-      .select('*')
-      .eq('vote_id', vote.id);
-
-    return NextResponse.json({ data: { ...fullVote, options: voteOptions || [] } }, { status: 201 });
+    return NextResponse.json({ data: { ...fullVoteRows[0], options: voteOptions } }, { status: 201 });
   } catch {
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }

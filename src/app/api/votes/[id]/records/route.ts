@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase';
+import { getDb } from '@/lib/db';
 
 export async function GET(
   _request: NextRequest,
@@ -7,17 +7,11 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const supabase = getSupabaseAdmin();
+    const sql = getDb();
 
-    const { data: records, error } = await supabase
-      .from('vote_records')
-      .select('*')
-      .eq('vote_id', id)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const records = await sql`
+      SELECT * FROM vote_records WHERE vote_id = ${id} ORDER BY created_at DESC
+    `;
 
     return NextResponse.json({ data: records });
   } catch {

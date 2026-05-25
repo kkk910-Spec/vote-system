@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase';
+import { getDb, hashPassword } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 
 export async function GET() {
@@ -9,15 +9,10 @@ export async function GET() {
       return NextResponse.json({ error: '权限不足' }, { status: 403 });
     }
 
-    const supabase = getSupabaseAdmin();
-    const { data, error } = await supabase
-      .from('users')
-      .select('id, username, role, is_active, created_at')
-      .order('created_at', { ascending: true });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const sql = getDb();
+    const data = await sql`
+      SELECT id, username, role, is_active, created_at FROM users ORDER BY created_at ASC
+    `;
 
     return NextResponse.json({ data });
   } catch {
@@ -34,27 +29,16 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { username, password, role } = body;
-    const { hashPassword } = await import('@/lib/auth');
     const hashedPassword = hashPassword(password);
 
-    const supabase = getSupabaseAdmin();
-    const { data, error } = await supabase
-      .from('users')
-      .insert({
-        username,
-        password: hashedPassword,
-        role: role || 'agent',
-        is_active: true,
-        login_fail_count: 0,
-      })
-      .select('id, username, role, is_active, created_at')
-      .single();
+    const sql = getDb();
+    const data = await sql`
+      INSERT INTO users (username, password, role, is_active, login_fail_count)
+      VALUES (${username}, ${hashedPassword}, ${role || 'agent'}, true, 0)
+      RETURNING id, username, role, is_active, created_at
+    `;
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ data });
+    return NextResponse.json({ data: data[0] });
   } catch {
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
