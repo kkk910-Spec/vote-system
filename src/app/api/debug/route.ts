@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
-import { createHash } from 'crypto';
+
+export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 export async function GET() {
-  const results: Record<string, any> = {};
+  const results: Record<string, unknown> = {};
 
-  // 1. 检查环境变量
+  // 1. 环境变量检查
   results.env_check = {
     DB_HOST: process.env.DB_HOST || 'NOT SET',
     DB_PORT: process.env.DB_PORT || 'NOT SET',
@@ -13,50 +14,146 @@ export async function GET() {
     DB_PASSWORD_set: !!process.env.DB_PASSWORD,
     DB_NAME: process.env.DB_NAME || 'NOT SET',
     DATABASE_URL_set: !!process.env.DATABASE_URL,
-    NODE_ENV: process.env.NODE_ENV,
+    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || 'NOT SET',
+    SUPABASE_SERVICE_ROLE_KEY_set: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    SUPABASE_ANON_KEY_set: !!process.env.SUPABASE_ANON_KEY,
   };
 
-  // 2. 测试数据库连接
-  try {
-    const db = getDb();
-    const testQuery = await db`SELECT 1 as test`;
-    results.db_connection = 'OK';
-    results.db_test_result = testQuery;
-  } catch (error: any) {
-    results.db_connection = 'FAILED';
-    results.db_error = error?.message;
-    results.db_error_code = error?.code;
-    return NextResponse.json(results, { status: 500 });
-  }
-
-  // 3. 查询 admin 用户
-  try {
-    const db = getDb();
-    const users = await db`SELECT id, username, password, role, is_active, login_fail_count, locked_until FROM users WHERE username = 'admin'`;
-    if (users.length > 0) {
-      const u = users[0] as any;
-      results.admin_user = {
-        id: u.id,
-        username: u.username,
-        role: u.role,
-        is_active: u.is_active,
-        login_fail_count: u.login_fail_count,
-        locked_until: u.locked_until,
-        password_prefix: u.password?.substring(0, 10) + '...',
+  // 2. 测试 Supabase REST API (HTTP) - 使用 anon key
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mapmvufwcsobaxwovmms.supabase.co';
+  const anonKey = process.env.SUPABASE_ANON_KEY || process.env.COZE_SUPABASE_ANON_KEY;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  // 测试 anon key
+  if (anonKey) {
+    try {
+      const res = await fetch(`${supabaseUrl}/rest/v1/users?select=id,username,role&limit=1`, {
+        headers: {
+          'apikey': anonKey,
+          'Authorization': `Bearer ${anonKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const data = await res.json();
+      results.rest_api_anon = {
+        status: res.status,
+        ok: res.ok,
+        data: JSON.stringify(data).substring(0, 300),
       };
-    } else {
-      results.admin_user = 'NOT FOUND';
+    } catch (err) {
+      results.rest_api_anon = {
+        error: err instanceof Error ? err.message : 'Unknown',
+      };
     }
-  } catch (error: any) {
-    results.admin_query_error = error?.message;
   }
 
-  // 4. 测试密码哈希
+  // 测试 service role key
+  if (serviceKey) {
+    try {
+      const res = await fetch(`${supabaseUrl}/rest/v1/users?select=id,username,role&limit=1`, {
+        headers: {
+          'apikey': serviceKey,
+          'Authorization': `Bearer ${serviceKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const data = await res.json();
+      results.rest_api_service = {
+        status: res.status,
+        ok: res.ok,
+        data: JSON.stringify(data).substring(0, 300),
+      };
+    } catch (err) {
+      results.rest_api_service = {
+        error: err instanceof Error ? err.message : 'Unknown',
+      };
+    }
+  }
+
+  // 3. 测试 PostgreSQL TCP 连接 - 多种方式
   try {
-    const hash = createHash('sha256').update('admin123').digest('hex');
-    results.test_hash = hash;
-  } catch (error: any) {
-    results.hash_error = error?.message;
+    const postgres = (await import('postgres')).default;
+    
+    const connections = [
+      {
+        name: 'tcp_direct_ipv6',
+        url: 'postgresql://postgres:Vote2025Secure@db.mapmvufwcsobaxwovmms.supabase.co:5432/postgres',
+      },
+      {
+        name: 'tcp_pooler_session',
+        url: 'postgresql://postgres.mapmvufwcsobaxwovmms:Vote2025Secure@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres',
+      },
+      {
+        name: 'tcp_pooler_transaction',
+        url: 'postgresql://postgres.mapmvufwcsobaxwovmms:Vote2025Secure@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres',
+      },
+      {
+        name: 'tcp_pooler_token_6543',
+        url: 'postgresql://postgres.E82huelmgD34B7AT@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres',
+      },
+      {
+        name: 'tcp_neon_direct',
+        url: 'postgresql://postgres:Vote2025Secure@cp-happy-glow-e52cd1e4.us-east-2.aws.neon.tech/postgres',
+      },
+    ];
+
+    for (const conn of connections) {
+      try {
+        const sql = postgres(conn.url, { ssl: 'require', max: 1, connect_timeout: 10 });
+        const r = await sql`SELECT 1 as test`;
+        (results as Record<string, unknown>)[conn.name] = { status: 'OK', result: JSON.stringify(r) };
+        await sql.end();
+      } catch (e) {
+        (results as Record<string, unknown>)[conn.name] = { 
+          error: (e as Error).message?.substring(0, 200),
+          code: (e as {code?: string}).code,
+        };
+      }
+    }
+  } catch (err) {
+    results.tcp_tests = { error: err instanceof Error ? err.message : 'Unknown' };
+  }
+
+  // 4. 测试 @neondatabase/serverless HTTP 连接
+  try {
+    const { neon } = await import('@neondatabase/serverless');
+    
+    const neonConns = [
+      {
+        name: 'neon_http_pooler',
+        url: 'postgresql://postgres.mapmvufwcsobaxwovmms:Vote2025Secure@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres',
+      },
+      {
+        name: 'neon_http_direct',
+        url: 'postgresql://postgres:Vote2025Secure@db.mapmvufwcsobaxwovmms.supabase.co:5432/postgres',
+      },
+    ];
+
+    for (const conn of neonConns) {
+      try {
+        const sql = neon(conn.url);
+        const r = await sql`SELECT 1 as test`;
+        (results as Record<string, unknown>)[conn.name] = { status: 'OK', result: JSON.stringify(r) };
+      } catch (e) {
+        (results as Record<string, unknown>)[conn.name] = { 
+          error: (e as Error).message?.substring(0, 200),
+        };
+      }
+    }
+  } catch (err) {
+    results.neon_http_tests = { error: err instanceof Error ? err.message : 'Unknown' };
+  }
+
+  // 5. 测试 Supabase Auth API
+  try {
+    const res = await fetch(`${supabaseUrl}/auth/v1/health`);
+    const data = await res.text();
+    results.auth_health = {
+      status: res.status,
+      data: data.substring(0, 200),
+    };
+  } catch (err) {
+    results.auth_health = { error: err instanceof Error ? err.message : 'Unknown' };
   }
 
   return NextResponse.json(results, { status: 200 });

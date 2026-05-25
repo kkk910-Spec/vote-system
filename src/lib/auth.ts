@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers';
-import { getDb } from '@/lib/db';
+import { getSupabaseAdmin } from '@/lib/supabase';
 import { createHash } from 'crypto';
 
 export interface User {
@@ -27,14 +27,15 @@ export async function getCurrentUser(): Promise<User | null> {
   }
   
   try {
-    const db = getDb();
-    const users = await db`
-      SELECT id, username, role, name FROM users 
-      WHERE id = ${userId} AND is_active = true
-      LIMIT 1
-    `;
-    
-    if (users.length === 0) {
+    const supabase = getSupabaseAdmin();
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('id, username, role, name')
+      .eq('id', userId)
+      .eq('is_active', true)
+      .limit(1);
+
+    if (error || !users || users.length === 0) {
       return null;
     }
     

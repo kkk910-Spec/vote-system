@@ -1,144 +1,96 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
-import { createHash } from 'crypto';
-
-// 使用 Node.js 原生 crypto 模块进行 SHA-256 哈希
-function hashPassword(password: string): string {
-  return createHash('sha256').update(password).digest('hex');
-}
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { hashPassword } from '@/lib/auth';
+import { cookies } from 'next/headers';
 
 export async function POST(request: Request) {
   try {
-    let body: { username?: string; password?: string };
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json({ error: '请求格式错误' }, { status: 400 });
-    }
-
-    const { username, password } = body;
+    const { username, password } = await request.json();
 
     if (!username || !password) {
-      return NextResponse.json(
-        { error: '请输入用户名和密码' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: '请输入用户名和密码' }, { status: 400 });
     }
 
-    // 测试数据库连接
-    let db;
-    try {
-      db = getDb();
-      // 简单连接测试
-      await db`SELECT 1`;
-    } catch (dbError: any) {
-      console.error('Database connection error:', dbError?.message);
-      return NextResponse.json(
-        { error: '数据库连接失败，请稍后重试' },
-        { status: 500 }
-      );
-    }
+    const supabase = getSupabaseAdmin();
 
     // 查询用户
-    const users = await db`
-      SELECT id, username, password, role, is_active, name, login_fail_count, locked_until
-      FROM users
-      WHERE username = ${username}
-    `;
+    const { data: users, error: queryError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('username', username)
+      .limit(1);
 
-    if (users.length === 0) {
-      return NextResponse.json(
-        { error: '用户名或密码错误' },
-        { status: 401 }
-      );
+    if (queryError) {
+      console.error('查询用户失败:', queryError);
+      return NextResponse.json({ error: '数据库查询失败' }, { status: 500 });
     }
 
-    const user = users[0] as any;
+    if (!users || users.length === 0) {
+      return NextResponse.json({ error: '用户名或密码错误' }, { status: 401 });
+    }
 
-    // 检查账号是否被锁定
+    const user = users[0];
+
+    // 检查账户状态
+    if (!user.is_active) {
+      return NextResponse.json({ error: '账户已被禁用' }, { status: 403 });
+    }
+
+    // 检查锁定状态
     if (user.locked_until && new Date(user.locked_until) > new Date()) {
-      const remainingMs = new Date(user.locked_until).getTime() - Date.now();
-      const remainingMinutes = Math.ceil(remainingMs / 60000);
-      return NextResponse.json(
-        { error: '账号已被锁定，请稍后再试', locked: true, remainingMinutes },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: '账户已锁定，请稍后重试' }, { status: 403 });
     }
 
     // 验证密码
-    const hashedPassword = hashPassword(password);
-    if (user.password !== hashedPassword) {
-      // 更新失败次数
-      const newFailCount = (user.login_fail_count || 0) + 1;
-      const lockUntil = newFailCount >= 5
-        ? new Date(Date.now() + 30 * 60 * 1000).toISOString()
-        : null;
-
-      try {
-        await db`
-          UPDATE users
-          SET login_fail_count = ${newFailCount}, locked_until = ${lockUntil}
-          WHERE id = ${user.id}
-        `;
-      } catch (e) {
-        console.error('Failed to update login_fail_count:', e);
+    const passwordHash = hashPassword(password);
+    if (passwordHash !== user.password) {
+      // 更新失败计数
+      const failCount = (user.login_fail_count || 0) + 1;
+      const updates: Record<string, unknown> = { login_fail_count: failCount };
+      if (failCount >= 5) {
+        updates.locked_until = new Date(Date.now() + 30 * 60 * 1000).toISOString();
       }
-
-      return NextResponse.json(
-        { error: '用户名或密码错误' },
-        { status: 401 }
-      );
+      await supabase.from('users').update(updates).eq('id', user.id);
+      return NextResponse.json({ error: '用户名或密码错误' }, { status: 401 });
     }
 
-    // 检查账号是否启用
-    if (!user.is_active) {
-      return NextResponse.json(
-        { error: '账号已被禁用' },
-        { status: 403 }
-      );
-    }
+    // 登录成功 - 重置失败计数
+    await supabase.from('users').update({
+      login_fail_count: 0,
+      locked_until: null,
+      last_login_at: new Date().toISOString(),
+    }).eq('id', user.id);
 
-    // 更新登录时间和重置失败次数
-    try {
-      await db`
-        UPDATE users
-        SET last_login_at = NOW(),
-            login_fail_count = 0,
-            locked_until = NULL
-        WHERE id = ${user.id}
-      `;
-    } catch (e) {
-      console.error('Failed to update last_login_at:', e);
-    }
-
-    // 返回用户信息（不含密码），并设置 cookie
-    const { password: _, ...userWithoutPassword } = user;
-
+    // 设置 cookie
     const response = NextResponse.json({
       success: true,
       user: {
-        ...userWithoutPassword,
-        login_fail_count: 0,
-        locked_until: null,
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        role: user.role,
       },
     });
 
-    // 设置 user_id cookie，7天过期
     response.cookies.set('user_id', user.id, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60, // 7天
+      maxAge: 60 * 60 * 24 * 7,
+      path: '/',
+    });
+
+    response.cookies.set('user_role', user.role, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7,
       path: '/',
     });
 
     return response;
-  } catch (error: any) {
-    console.error('Login error:', error?.message || error);
-    console.error('Login error stack:', error?.stack);
-    return NextResponse.json(
-      { error: '登录失败', detail: error?.message || '未知错误' },
-      { status: 500 }
-    );
+  } catch (error) {
+    console.error('登录错误:', error);
+    return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
 }

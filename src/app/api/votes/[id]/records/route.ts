@@ -1,25 +1,26 @@
-import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseAdmin } from '@/lib/supabase';
 
 export async function GET(
-  request: Request,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const db = getDb();
+    const supabase = getSupabaseAdmin();
 
-    const records = await db`
-      SELECT vr.*, vo.title as option_name
-      FROM vote_records vr
-      LEFT JOIN vote_options vo ON vr.option_id = vo.id
-      WHERE vr.vote_id = ${id}
-      ORDER BY vr.created_at DESC
-    `;
+    const { data: records, error } = await supabase
+      .from('vote_records')
+      .select('*')
+      .eq('vote_id', id)
+      .order('created_at', { ascending: false });
 
-    return NextResponse.json({ records });
-  } catch (error) {
-    console.error('Get vote records error:', error);
-    return NextResponse.json({ error: '获取投票记录失败' }, { status: 500 });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ data: records });
+  } catch {
+    return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
 }

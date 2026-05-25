@@ -1,43 +1,68 @@
-import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function GET(
-  request: Request,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const db = getDb();
+    const supabase = getSupabaseAdmin();
 
-    const candidates = await db`
-      SELECT id, vote_id, title as name, description, image_url, vote_count, order_num, sms_content, created_at FROM vote_options WHERE vote_id = ${id} ORDER BY id
-    `;
+    const { data: options, error } = await supabase
+      .from('vote_options')
+      .select('*')
+      .eq('vote_id', id)
+      .order('created_at', { ascending: true });
 
-    return NextResponse.json({ candidates });
-  } catch (error) {
-    console.error('Get candidates error:', error);
-    return NextResponse.json({ error: '获取候选人列表失败' }, { status: 500 });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ data: options });
+  } catch {
+    return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
 }
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: '未登录' }, { status: 401 });
+    }
+
     const body = await request.json();
-    const db = getDb();
+    const { title, description, image_url } = body;
 
-    const result = await db`
-      INSERT INTO vote_options (vote_id, title, image_url, description, vote_count)
-      VALUES (${id}, ${body.name || body.title}, ${body.image_url || null}, ${body.description || ''}, 0)
-      RETURNING *
-    `;
+    if (!title) {
+      return NextResponse.json({ error: '请填写选项标题' }, { status: 400 });
+    }
 
-    return NextResponse.json({ success: true, candidate: result[0] });
-  } catch (error) {
-    console.error('Create candidate error:', error);
-    return NextResponse.json({ error: '添加候选人失败' }, { status: 500 });
+    const supabase = getSupabaseAdmin();
+
+    const { data, error } = await supabase
+      .from('vote_options')
+      .insert({
+        vote_id: id,
+        title,
+        description: description || '',
+        image_url: image_url || '',
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ data }, { status: 201 });
+  } catch {
+    return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
 }

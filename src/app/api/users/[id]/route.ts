@@ -1,97 +1,66 @@
-import { NextResponse } from 'next/server';
-import { getDb, hashPassword } from '@/lib/db';
+import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { getCurrentUser } from '@/lib/auth';
 
-export async function GET(
-  request: Request,
+export async function PATCH(
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const db = getDb();
-    const users = await db`
-      SELECT id, username, role, is_active, name, created_at, last_login_at
-      FROM users WHERE id = ${id}
-    `;
-    if (users.length === 0) {
-      return NextResponse.json({ error: '用户不存在' }, { status: 404 });
+    const user = await getCurrentUser();
+    if (!user || user.role !== 'admin') {
+      return NextResponse.json({ error: '权限不足' }, { status: 403 });
     }
-    return NextResponse.json({ user: users[0] });
-  } catch (error) {
-    console.error('Get user error:', error);
-    return NextResponse.json({ error: '获取用户信息失败' }, { status: 500 });
-  }
-}
 
-export async function PUT(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
     const body = await request.json();
-    const db = getDb();
+    const supabase = getSupabaseAdmin();
+    const updateData: Record<string, unknown> = {};
 
-    const updates: string[] = [];
-    const values: any[] = [];
-
-    if (body.name !== undefined) {
-      updates.push('name = $' + (values.length + 1));
-      values.push(body.name);
-    }
-    if (body.role !== undefined) {
-      updates.push('role = $' + (values.length + 1));
-      values.push(body.role);
-    }
-    if (body.is_active !== undefined) {
-      updates.push('is_active = $' + (values.length + 1));
-      values.push(body.is_active);
-    }
+    if (body.is_active !== undefined) updateData.is_active = body.is_active;
+    if (body.role) updateData.role = body.role;
     if (body.password) {
-      const hashedPassword = await hashPassword(body.password);
-      updates.push('password = $' + (values.length + 1));
-      values.push(hashedPassword);
+      const { hashPassword } = await import('@/lib/auth');
+      updateData.password = hashPassword(body.password);
     }
 
-    if (updates.length === 0) {
-      return NextResponse.json({ error: '没有更新内容' }, { status: 400 });
+    const { data, error } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', id)
+      .select('id, username, role, is_active, created_at')
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    values.push(id);
-
-    const result = await db`
-      UPDATE users SET ${db(updates.join(', '))}
-      WHERE id = ${id}
-      RETURNING id, username, role, name, is_active, created_at
-    `;
-
-    if (result.length === 0) {
-      return NextResponse.json({ error: '用户不存在' }, { status: 404 });
-    }
-
-    return NextResponse.json({ success: true, user: result[0] });
-  } catch (error) {
-    console.error('Update user error:', error);
-    return NextResponse.json({ error: '更新用户失败' }, { status: 500 });
+    return NextResponse.json({ data });
+  } catch {
+    return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
 }
 
 export async function DELETE(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const db = getDb();
-    const result = await db`
-      DELETE FROM users WHERE id = ${id}
-      RETURNING id
-    `;
-    if (result.length === 0) {
-      return NextResponse.json({ error: '用户不存在' }, { status: 404 });
+    const user = await getCurrentUser();
+    if (!user || user.role !== 'admin') {
+      return NextResponse.json({ error: '权限不足' }, { status: 403 });
     }
+
+    const supabase = getSupabaseAdmin();
+    const { error } = await supabase.from('users').delete().eq('id', id);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Delete user error:', error);
-    return NextResponse.json({ error: '删除用户失败' }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
 }

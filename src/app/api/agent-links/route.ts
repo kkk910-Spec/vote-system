@@ -1,37 +1,62 @@
-import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function GET() {
   try {
-    const db = getDb();
-    const links = await db`
-      SELECT al.*, v.title as vote_title
-      FROM agent_links al
-      LEFT JOIN votes v ON al.vote_id = v.id
-      ORDER BY al.created_at DESC
-    `;
-    return NextResponse.json({ links });
-  } catch (error) {
-    console.error('Get agent links error:', error);
-    return NextResponse.json({ error: '获取代理链接失败' }, { status: 500 });
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: '未登录' }, { status: 401 });
+    }
+
+    const supabase = getSupabaseAdmin();
+
+    let query = supabase.from('agent_links').select('*');
+    if (user.role === 'agent') {
+      query = query.eq('user_id', user.id);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ data });
+  } catch {
+    return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const db = getDb();
+    const user = await getCurrentUser();
+    if (!user || user.role === 'agent') {
+      return NextResponse.json({ error: '权限不足' }, { status: 403 });
+    }
+
     const body = await request.json();
-    const { vote_id, agent_id, code, max_uses } = body;
+    const { vote_id, user_id, link_code, max_uses } = body;
+    const supabase = getSupabaseAdmin();
 
-    const result = await db`
-      INSERT INTO agent_links (vote_id, agent_id, link_code)
-      VALUES (${vote_id}, ${agent_id}, ${code})
-      RETURNING *
-    `;
+    const { data, error } = await supabase
+      .from('agent_links')
+      .insert({
+        vote_id,
+        user_id,
+        link_code,
+        max_uses: max_uses || null,
+        click_count: 0,
+      })
+      .select()
+      .single();
 
-    return NextResponse.json({ success: true, link: result[0] });
-  } catch (error) {
-    console.error('Create agent link error:', error);
-    return NextResponse.json({ error: '创建代理链接失败' }, { status: 500 });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ data });
+  } catch {
+    return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
 }

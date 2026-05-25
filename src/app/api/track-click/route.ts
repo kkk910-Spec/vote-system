@@ -1,33 +1,38 @@
-import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseAdmin } from '@/lib/supabase';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const db = getDb();
     const body = await request.json();
-    const { link_id, visitor_id } = body;
+    const { link_code, ip_address, user_agent } = body;
 
-    if (!link_id || !visitor_id) {
-      return NextResponse.json({ error: '缺少参数' }, { status: 400 });
+    if (!link_code) {
+      return NextResponse.json({ error: '缺少链接代码' }, { status: 400 });
     }
 
-    const link = await db`
-      SELECT * FROM agent_links WHERE id = ${link_id}
-    `;
+    const supabase = getSupabaseAdmin();
 
-    if (link.length === 0) {
+    // 查找 agent_link
+    const { data: link, error: linkError } = await supabase
+      .from('agent_links')
+      .select('id, vote_id')
+      .eq('link_code', link_code)
+      .single();
+
+    if (linkError || !link) {
       return NextResponse.json({ error: '链接不存在' }, { status: 404 });
     }
 
-    await db`
-      INSERT INTO click_tracks (link_id, visitor_id, clicked_at)
-      VALUES (${link_id}, ${visitor_id}, NOW())
-      ON CONFLICT DO NOTHING
-    `;
+    // 记录点击
+    await supabase.from('click_tracks').insert({
+      agent_link_id: link.id,
+      vote_id: link.vote_id,
+      ip_address: ip_address || null,
+      user_agent: user_agent || null,
+    });
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Track click error:', error);
-    return NextResponse.json({ error: '记录点击失败' }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
 }

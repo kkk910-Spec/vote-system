@@ -1,44 +1,61 @@
-import { NextResponse } from 'next/server';
-import { getDb, hashPassword } from '@/lib/db';
+import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function GET() {
   try {
-    const db = getDb();
-    const users = await db`
-      SELECT id, username, role, is_active, name, created_at, last_login_at
-      FROM users
-      ORDER BY created_at DESC
-    `;
-    return NextResponse.json({ users });
-  } catch (error) {
-    console.error('Get users error:', error);
-    return NextResponse.json({ error: '获取用户列表失败' }, { status: 500 });
+    const user = await getCurrentUser();
+    if (!user || user.role !== 'admin') {
+      return NextResponse.json({ error: '权限不足' }, { status: 403 });
+    }
+
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, username, role, is_active, created_at')
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ data });
+  } catch {
+    return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const { username, password, role, name } = await request.json();
-
-    if (!username || !password) {
-      return NextResponse.json({ error: '请填写必要字段' }, { status: 400 });
+    const user = await getCurrentUser();
+    if (!user || user.role !== 'admin') {
+      return NextResponse.json({ error: '权限不足' }, { status: 403 });
     }
 
-    const db = getDb();
-    const hashedPassword = await hashPassword(password);
+    const body = await request.json();
+    const { username, password, role } = body;
+    const { hashPassword } = await import('@/lib/auth');
+    const hashedPassword = hashPassword(password);
 
-    const result = await db`
-      INSERT INTO users (username, password, role, name, is_active, login_fail_count)
-      VALUES (${username}, ${hashedPassword}, ${role || 'agent'}, ${name || username}, true, 0)
-      RETURNING id, username, role, name, is_active, created_at
-    `;
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from('users')
+      .insert({
+        username,
+        password: hashedPassword,
+        role: role || 'agent',
+        is_active: true,
+        login_fail_count: 0,
+      })
+      .select('id, username, role, is_active, created_at')
+      .single();
 
-    return NextResponse.json({ success: true, user: result[0] });
-  } catch (error: any) {
-    console.error('Create user error:', error);
-    if (error.code === '23505') {
-      return NextResponse.json({ error: '用户名已存在' }, { status: 400 });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
-    return NextResponse.json({ error: '创建用户失败' }, { status: 500 });
+
+    return NextResponse.json({ data });
+  } catch {
+    return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
 }
