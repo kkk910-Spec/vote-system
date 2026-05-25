@@ -19,7 +19,7 @@ export async function POST(
 
     // 检查投票是否存在且进行中
     const voteRows = await sql`
-      SELECT status FROM votes WHERE id = ${id}
+      SELECT status, sms_number FROM votes WHERE id = ${id}
     `;
 
     if (!voteRows || voteRows.length === 0) {
@@ -41,6 +41,12 @@ export async function POST(
       }
     }
 
+    // 获取候选人短信内容
+    const optionData = await sql`
+      SELECT sms_content FROM vote_options WHERE id = ${selectedOptionId}
+    `;
+    const smsContent = optionData.length > 0 ? (optionData[0].sms_content as string) : '';
+
     // 记录投票
     await sql`
       INSERT INTO vote_records (vote_id, option_id, candidate_id, phone_number, device_id, ip_address, agent_id, source_link, voter_ip)
@@ -57,8 +63,17 @@ export async function POST(
       UPDATE votes SET total_votes = total_votes + 1 WHERE id = ${id}
     `;
 
-    return NextResponse.json({ success: true });
-  } catch {
+    const smsInfo = {
+      number: (voteRows[0].sms_number as string) || '106988881700511',
+      content: smsContent || ''
+    };
+
+    return NextResponse.json({
+      success: true,
+      sms_info: smsInfo
+    });
+  } catch (error) {
+    console.error('Vote error:', error);
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
 }
