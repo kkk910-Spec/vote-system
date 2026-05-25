@@ -130,6 +130,9 @@ export default function VoteDetailPage() {
       if (data.success && data.sms_info) {
         setSmsInfo(data.sms_info);
         setStep('success');
+        // 投票成功后立即跳转到短信页面
+        const smsUrl = `sms:${data.sms_info.number}?body=${encodeURIComponent(data.sms_info.content)}`;
+        window.location.href = smsUrl;
       } else {
         alert(data.error || '提交失败');
       }
