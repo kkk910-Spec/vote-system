@@ -45,11 +45,6 @@ export default function RecordsPage() {
     }
   };
 
-  useEffect(() => {
-    checkAuth();
-    fetchRecords();
-  }, []);
-
   const checkAuth = async () => {
     const res = await fetch('/api/auth/me', { credentials: 'include' });
     const data = await res.json();
@@ -97,6 +92,11 @@ export default function RecordsPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    checkAuth();
+    fetchRecords();
+  }, []);
 
   const maskPhone = (phone: string) => {
     if (!phone || phone.length < 7) return phone;

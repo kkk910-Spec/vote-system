@@ -71,10 +71,6 @@ export default function LinksPage() {
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [currentLink, setCurrentLink] = useState<{ link: string; voteTitle: string; qrCode?: string } | null>(null);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -98,6 +94,10 @@ export default function LinksPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   // 获取当前域名
   const getDomain = () => {

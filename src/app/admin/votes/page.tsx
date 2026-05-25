@@ -81,11 +81,6 @@ export default function AdminVotesPage() {
   const [topText, setTopText] = useState('');
   const [voteText, setVoteText] = useState('已有 {count} 人参与投票');
 
-  useEffect(() => {
-    checkAuth();
-    fetchVotes();
-  }, []);
-
   const checkAuth = async () => {
     const res = await fetch('/api/auth/me', { credentials: 'include' });
     const data = await res.json();
@@ -107,6 +102,11 @@ export default function AdminVotesPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    checkAuth();
+    fetchVotes();
+  }, []);
 
   const resetForm = () => {
     setTitle('');

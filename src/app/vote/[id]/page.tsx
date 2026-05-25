@@ -59,10 +59,6 @@ export default function VoteDetailPage() {
   const [smsInfo, setSmsInfo] = useState<{ number: string; content: string } | null>(null);
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
 
-  useEffect(() => {
-    fetchVote();
-  }, [params.id]);
-
   const fetchVote = async () => {
     try {
       const ref = searchParams.get('ref');
@@ -81,6 +77,10 @@ export default function VoteDetailPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchVote();
+  }, [params.id]);
 
   const getTotalVotes = (candidates: Candidate[]) => {
     return candidates.reduce((sum, c) => sum + c.vote_count, 0);

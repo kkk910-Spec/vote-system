@@ -51,10 +51,6 @@ export default function AdminLayout({
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState(false);
 
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
   const checkAuth = async () => {
     try {
       const res = await fetch('/api/auth/me', { credentials: 'include' });
@@ -70,6 +66,10 @@ export default function AdminLayout({
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });

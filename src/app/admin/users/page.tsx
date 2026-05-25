@@ -68,11 +68,6 @@ export default function AdminUsersPage() {
     }
   };
 
-  useEffect(() => {
-    fetchCurrentUser();
-    fetchUsers();
-  }, []);
-
   const fetchCurrentUser = async () => {
     const res = await fetch('/api/auth/me', { credentials: 'include' });
     const data = await res.json();
@@ -97,6 +92,11 @@ export default function AdminUsersPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchCurrentUser();
+    fetchUsers();
+  }, []);
 
   const openCreateDialog = () => {
     setEditingUser(null);

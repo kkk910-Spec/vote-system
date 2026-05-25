@@ -87,6 +87,23 @@ function HomePageContent() {
     }
   }, [refCode]);
 
+  const fetchVotes = async () => {
+    try {
+      const res = await fetch('/api/votes?status=active');
+      const data = await res.json();
+      if (data.votes) {
+        setVotes(data.votes);
+        if (data.votes.length === 1) {
+          setCurrentVote(data.votes[0]);
+        }
+      }
+    } catch {
+      // 静默处理错误
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchVotes();
   }, []);
@@ -120,23 +137,6 @@ function HomePageContent() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
-
-  const fetchVotes = async () => {
-    try {
-      const res = await fetch('/api/votes?status=active');
-      const data = await res.json();
-      if (data.votes) {
-        setVotes(data.votes);
-        if (data.votes.length === 1) {
-          setCurrentVote(data.votes[0]);
-        }
-      }
-    } catch {
-      // 静默处理错误
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleCandidateClick = (candidate: Candidate) => {
     if (!currentVote) return;

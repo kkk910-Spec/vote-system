@@ -38,10 +38,6 @@ export default function AdminDashboard() {
   const [recentVotes, setRecentVotes] = useState<RecentVote[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   const fetchData = async () => {
     try {
       const userRes = await fetch('/api/auth/me', { credentials: 'include' });
@@ -80,6 +76,10 @@ export default function AdminDashboard() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('zh-CN', {
