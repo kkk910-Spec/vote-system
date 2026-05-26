@@ -34,6 +34,7 @@ export default function RecordsPage() {
   const [showFullPhone, setShowFullPhone] = useState(false);
   const [stats, setStats] = useState({ total: 0, today: 0 });
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(true);
 
   const copyToClipboard = async (text: string, id: string) => {
     try {
@@ -55,7 +56,8 @@ export default function RecordsPage() {
     }
   };
 
-  const fetchRecords = async () => {
+  const fetchRecords = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       // 获取所有投票项目
       const votesRes = await fetch('/api/votes', { credentials: 'include' });
@@ -98,6 +100,15 @@ export default function RecordsPage() {
     fetchRecords();
   }, []);
 
+  // 自动刷新：每3秒拉取最新数据
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(() => {
+      fetchRecords(true);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [autoRefresh]);
+
   const maskPhone = (phone: string) => {
     if (!phone || phone.length < 7) return phone;
     return phone.slice(0, 3) + '****' + phone.slice(-4);
@@ -133,13 +144,29 @@ export default function RecordsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">
-          {user?.role === 'admin' ? '全部投票记录' : '我的投票记录'}
-        </h1>
-        <Button onClick={exportCSV} variant="outline">
-          <Download className="h-4 w-4 mr-2" />
-          导出CSV
-        </Button>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-gray-900">
+            {user?.role === 'admin' ? '全部投票记录' : '我的投票记录'}
+          </h1>
+          <label className="flex items-center gap-1.5 text-sm text-gray-500 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={autoRefresh}
+              onChange={(e) => setAutoRefresh(e.target.checked)}
+              className="rounded"
+            />
+            自动刷新
+          </label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button onClick={() => fetchRecords()} variant="outline" size="sm">
+            刷新
+          </Button>
+          <Button onClick={exportCSV} variant="outline">
+            <Download className="h-4 w-4 mr-2" />
+            导出CSV
+          </Button>
+        </div>
       </div>
 
       {/* 统计卡片 */}
