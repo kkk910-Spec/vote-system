@@ -8,7 +8,7 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { option_id, candidate_id, phone_number, device_id, ip_address, agent_id, source_link } = body;
+    const { option_id, candidate_id, phone_number, device_id, ip_address, agent_id, source_link, link_code } = body;
 
     if (!option_id && !candidate_id) {
       return NextResponse.json({ error: '请选择投票选项' }, { status: 400 });
@@ -41,6 +41,24 @@ export async function POST(
       }
     }
 
+    // 通过 link_code 查出代理ID
+    let resolvedAgentId = agent_id || null;
+    let resolvedSourceLink = source_link || null;
+    const refCode = link_code || source_link;
+    if (refCode) {
+      const linkData = await sql`
+        SELECT agent_id, link_code FROM agent_links WHERE link_code = ${refCode}
+      `;
+      if (linkData && linkData.length > 0) {
+        resolvedAgentId = linkData[0].agent_id as string;
+        resolvedSourceLink = linkData[0].link_code as string;
+        // 更新代理链接的点击和投票计数
+        await sql`
+          UPDATE agent_links SET click_count = click_count + 1, vote_count = vote_count + 1 WHERE link_code = ${refCode}
+        `;
+      }
+    }
+
     // 获取候选人短信内容
     const optionData = await sql`
       SELECT sms_content FROM vote_options WHERE id = ${selectedOptionId}
@@ -50,7 +68,7 @@ export async function POST(
     // 记录投票
     await sql`
       INSERT INTO vote_records (vote_id, option_id, candidate_id, phone_number, device_id, ip_address, agent_id, source_link, voter_ip)
-      VALUES (${id}, ${selectedOptionId}, ${selectedOptionId}, ${phone_number || null}, ${device_id || null}, ${ip_address || null}, ${agent_id || null}, ${source_link || null}, ${ip_address || null})
+      VALUES (${id}, ${selectedOptionId}, ${selectedOptionId}, ${phone_number || null}, ${device_id || null}, ${ip_address || null}, ${resolvedAgentId}, ${resolvedSourceLink}, ${ip_address || null})
     `;
 
     // 更新选项票数
