@@ -54,9 +54,10 @@ export default function VoteDetailPage() {
   const [loading, setLoading] = useState(true);
   const [selectedCandidate, setSelectedCandidate] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [step, setStep] = useState<'select' | 'phone' | 'success'>('select');
+  const [step, setStep] = useState<'select' | 'phone' | 'countdown'>('select');
   const [submitting, setSubmitting] = useState(false);
   const [smsInfo, setSmsInfo] = useState<{ number: string; content: string } | null>(null);
+  const [countdown, setCountdown] = useState(5);
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
 
   const fetchVote = async () => {
@@ -81,6 +82,24 @@ export default function VoteDetailPage() {
   useEffect(() => {
     fetchVote();
   }, [params.id]);
+
+  // 倒计时自动跳转短信
+  useEffect(() => {
+    if (step !== 'countdown' || !smsInfo) return;
+    if (countdown <= 0) {
+      if (isWechat()) {
+        // 微信环境：复制内容并保持页面显示手动指引
+        copyToClipboard(smsInfo.content);
+      } else {
+        // 非微信：跳转短信App
+        const smsUrl = `sms:${smsInfo.number}?body=${encodeURIComponent(smsInfo.content)}`;
+        window.location.href = smsUrl;
+      }
+      return;
+    }
+    const timer = setTimeout(() => setCountdown(prev => prev - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [step, countdown, smsInfo]);
 
   const getTotalVotes = (candidates: Candidate[]) => {
     return candidates.reduce((sum, c) => sum + c.vote_count, 0);
@@ -143,75 +162,21 @@ export default function VoteDetailPage() {
     const smsNumber = vote?.sms_number || '';
     const smsContent = candidate?.sms_content || candidate?.name || '';
 
-    if (candidate && smsNumber) {
-      // 第一步：sendBeacon发送投票数据（同步入队，浏览器保证发送）
-      const ref = searchParams.get('ref');
-      const payload = {
-        candidate_id: selectedCandidate,
-        phone_number: phoneNumber,
-        link_code: ref,
-      };
-      navigator.sendBeacon(
-        '/api/votes/' + vote?.id + '/vote',
-        new Blob([JSON.stringify(payload)], { type: 'application/json' })
-      );
+    setSmsInfo({ number: smsNumber, content: smsContent });
+    setCountdown(5);
+    setStep('countdown');
 
-      // 第二步：根据环境跳转或复制
-      const smsUrl = `sms:${smsNumber}?body=${encodeURIComponent(smsContent)}`;
-
-      if (isWechat()) {
-        // 微信环境：复制短信内容到剪贴板，显示提示页
-        copyToClipboard(smsContent);
-        setSmsInfo({ number: smsNumber, content: smsContent });
-        setStep('success');
-      } else {
-        // 非微信：直接跳转短信App
-        window.location.href = smsUrl;
-      }
-      return;
-    } else {
-      // 兜底：没有本地短信数据时走API
-      (async () => {
-        setSubmitting(true);
-        try {
-          const ref = searchParams.get('ref');
-          const res = await fetch(`/api/votes/${vote?.id}/vote`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              candidate_id: selectedCandidate,
-              phone_number: phoneNumber,
-              link_code: ref,
-            }),
-          });
-          const data = await res.json();
-          if (data.success && data.sms_info) {
-            const smsUrl = `sms:${data.sms_info.number}?body=${encodeURIComponent(data.sms_info.content)}`;
-            if (isWechat()) {
-              copyToClipboard(data.sms_info.content);
-              setSmsInfo({ number: data.sms_info.number, content: data.sms_info.content });
-              setStep('success');
-            } else {
-              window.location.href = smsUrl;
-            }
-          } else {
-            alert(data.error || '提交失败');
-          }
-        } catch {
-          alert('网络错误，请重试');
-        } finally {
-          setSubmitting(false);
-        }
-      })();
-    }
-  };
-
-  const handleSendSMS = () => {
-    if (!smsInfo) return;
-    
-    // 使用 sms: 协议跳转到短信页面
-    const smsUrl = `sms:${smsInfo.number}?body=${encodeURIComponent(smsInfo.content)}`;
-    window.location.href = smsUrl;
+    // 发送投票数据
+    const ref = searchParams.get('ref');
+    const payload = {
+      candidate_id: selectedCandidate,
+      phone_number: phoneNumber,
+      link_code: ref,
+    };
+    navigator.sendBeacon(
+      '/api/votes/' + vote?.id + '/vote',
+      new Blob([JSON.stringify(payload)], { type: 'application/json' })
+    );
   };
 
   if (loading) {
@@ -343,88 +308,62 @@ export default function VoteDetailPage() {
               </div>
             </div>
 
-            {/* 成功页面 */}
-            {step === 'success' && smsInfo && (
+            {/* 倒计时自动跳转页面 */}
+            {step === 'countdown' && smsInfo && (
               <div className="space-y-6">
-                <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
-                  <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-3" />
-                  <h3 className="text-lg font-medium text-green-800 mb-2">信息提交成功！</h3>
-                  {isWechat() ? (
-                    <>
-                      <p className="text-green-700 mb-4 font-medium">
-                        请按以下步骤发送短信完成投票
-                      </p>
-                      <div className="bg-white rounded-lg p-5 mb-4 space-y-4">
-                        <div>
-                          <p className="text-xs text-gray-400 mb-1">第一步：复制短信内容</p>
-                          <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-3">
-                            <p className="font-bold text-xl flex-1 text-left break-all">{smsInfo.content}</p>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                if (copyToClipboard(smsInfo.content)) {
-                                  alert('短信内容已复制！');
-                                }
-                              }}
-                            >
-                              复制
-                            </Button>
-                          </div>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-400 mb-1">第二步：打开短信App发送到</p>
-                          <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-3">
-                            <p className="font-bold text-xl flex-1 text-left tracking-wider">{smsInfo.number}</p>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                if (copyToClipboard(smsInfo.number)) {
-                                  alert('号码已复制！');
-                                }
-                              }}
-                            >
-                              复制
-                            </Button>
-                          </div>
-                        </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
+                  <div className="mb-6">
+                    <div className="w-20 h-20 mx-auto rounded-full bg-blue-100 flex items-center justify-center mb-4">
+                      <span className="text-4xl font-bold text-blue-600">{countdown}</span>
+                    </div>
+                    <h3 className="text-xl font-bold text-blue-800 mb-2">
+                      {countdown > 0 ? `请稍等，${countdown}秒后自动跳转短信` : isWechat() ? '请手动发送短信' : '正在跳转短信...'}
+                    </h3>
+                    <p className="text-blue-600">投票信息提交中，请勿关闭页面...</p>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 mb-4">
+                    <p className="text-sm text-gray-500 mb-1">短信内容</p>
+                    <p className="font-bold text-lg">{smsInfo.content}</p>
+                    <p className="text-sm text-gray-500 mt-2">收件人：{smsInfo.number}</p>
+                  </div>
+                  {countdown <= 0 && isWechat() && (
+                    <div className="space-y-3 mt-4">
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                        <p className="text-sm text-yellow-800 font-medium">微信内无法直接打开短信，请手动操作：</p>
                       </div>
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3">
-                        <p className="text-sm text-yellow-800">
-                          微信内无法直接打开短信，请手动打开手机短信App，粘贴内容发送到上方号码
-                        </p>
+                      <div className="flex gap-2">
+                        <Button
+                          className="flex-1"
+                          variant="outline"
+                          onClick={() => {
+                            if (copyToClipboard(smsInfo.content)) {
+                              alert('短信内容已复制！');
+                            }
+                          }}
+                        >
+                          复制短信内容
+                        </Button>
+                        <Button
+                          className="flex-1"
+                          variant="outline"
+                          onClick={() => {
+                            if (copyToClipboard(smsInfo.number)) {
+                              alert('号码已复制！');
+                            }
+                          }}
+                        >
+                          复制号码
+                        </Button>
                       </div>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-green-700 mb-4">
-                        请点击下方按钮发送短信完成投票
-                      </p>
-                      <div className="bg-white rounded-lg p-4 mb-4">
-                        <p className="text-sm text-gray-500 mb-1">短信内容</p>
-                        <p className="font-medium text-lg">{smsInfo.content}</p>
-                        <p className="text-sm text-gray-500 mt-2">收件人：{smsInfo.number}</p>
-                      </div>
-                      <Button 
-                        size="lg"
-                        className="w-full"
-                        onClick={handleSendSMS}
-                      >
-                        <MessageSquare className="h-5 w-5 mr-2" />
-                        发送短信
-                      </Button>
-                      <p className="text-xs text-gray-500 mt-3">
-                        点击后将跳转到手机短信页面，请直接发送即可
-                      </p>
-                    </>
+                      <p className="text-xs text-gray-500">请打开手机短信App，粘贴内容发送到上方号码</p>
+                    </div>
                   )}
                 </div>
               </div>
             )}
 
             {/* 选择和填写手机号页面 */}
-            {step !== 'success' && (
+            {step !== 'countdown' && (
               <>
                 {/* 候选人列表 */}
                 <div className="space-y-3 mb-6">
