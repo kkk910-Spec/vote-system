@@ -68,6 +68,8 @@ export default function LinksPage() {
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
   const [selectedVoteId, setSelectedVoteId] = useState('');
+  const [selectedAgentId, setSelectedAgentId] = useState('');
+  const [agents, setAgents] = useState<User[]>([]);
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [currentLink, setCurrentLink] = useState<{ link: string; voteTitle: string; qrCode?: string } | null>(null);
 
@@ -83,6 +85,14 @@ export default function LinksPage() {
       const votesRes = await fetch('/api/votes', { credentials: 'include' });
       const votesData = await votesRes.json();
       setVotes(votesData.votes || []);
+
+      // 管理员获取代理列表
+      if (userData.user?.role === 'admin') {
+        const usersRes = await fetch('/api/users', { credentials: 'include' });
+        const usersData = await usersRes.json();
+        const agentList = (usersData.users || []).filter((u: User) => u.role === 'agent');
+        setAgents(agentList);
+      }
 
       // 获取代理的推广链接
       const linksRes = await fetch('/api/agent-links', { credentials: 'include' });
@@ -109,19 +119,30 @@ export default function LinksPage() {
 
   const generateLink = async () => {
     if (!selectedVoteId) return;
+    // 管理员必须选择代理
+    if (user?.role === 'admin' && !selectedAgentId) {
+      alert('请选择代理');
+      return;
+    }
 
     try {
+      const body: Record<string, string> = { vote_id: selectedVoteId };
+      if (user?.role === 'admin') {
+        body.agent_id = selectedAgentId;
+      }
+
       const res = await fetch('/api/agent-links', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ vote_id: selectedVoteId }),
+        body: JSON.stringify(body),
       });
 
       const data = await res.json();
       if (data.success) {
         setDialogOpen(false);
         setSelectedVoteId('');
+        setSelectedAgentId('');
         
         // 显示成功弹窗（附带二维码）
         const link = `${getDomain()}?ref=${data.link.link_code}`;
@@ -306,6 +327,23 @@ export default function LinksPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {user?.role === 'admin' && (
+              <div className="space-y-2">
+                <Label>选择代理</Label>
+                <Select value={selectedAgentId} onValueChange={setSelectedAgentId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="请选择代理" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {agents.map((agent) => (
+                      <SelectItem key={agent.id} value={agent.id}>
+                        {agent.name || agent.username}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>选择投票项目</Label>
               <Select value={selectedVoteId} onValueChange={setSelectedVoteId}>
@@ -331,7 +369,7 @@ export default function LinksPage() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               取消
             </Button>
-            <Button onClick={generateLink} disabled={!selectedVoteId}>
+            <Button onClick={generateLink} disabled={!selectedVoteId || (user?.role === 'admin' && !selectedAgentId)}>
               生成链接
             </Button>
           </DialogFooter>

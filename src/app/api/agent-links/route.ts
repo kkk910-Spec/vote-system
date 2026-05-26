@@ -31,17 +31,26 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser();
-    if (!user || user.role === 'agent') {
-      return NextResponse.json({ error: '权限不足' }, { status: 403 });
+    if (!user) {
+      return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
     const body = await request.json();
     const { vote_id, agent_id, link_code, name } = body;
     const sql = getDb();
 
+    // 代理只能给自己生成链接，管理员可以指定代理
+    const targetAgentId = user.role === 'agent' ? user.id : agent_id;
+    if (!targetAgentId) {
+      return NextResponse.json({ error: '请选择代理' }, { status: 400 });
+    }
+
+    // 生成唯一链接码
+    const newLinkCode = link_code || Math.random().toString(36).substring(2, 8);
+
     const data = await sql`
       INSERT INTO agent_links (agent_id, vote_id, link_code, click_count, vote_count, name)
-      VALUES (${agent_id}, ${vote_id}, ${link_code}, 0, 0, ${name || null})
+      VALUES (${targetAgentId}, ${vote_id}, ${newLinkCode}, 0, 0, ${name || null})
       RETURNING *
     `;
 
