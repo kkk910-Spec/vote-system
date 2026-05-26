@@ -59,3 +59,39 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: '未登录' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) {
+      return NextResponse.json({ error: '缺少链接ID' }, { status: 400 });
+    }
+
+    const sql = getDb();
+
+    if (user.role === 'agent') {
+      // 代理只能删除自己的链接
+      const result = await sql`
+        DELETE FROM agent_links WHERE id = ${id} AND agent_id = ${user.id} RETURNING id
+      `;
+      if (result.length === 0) {
+        return NextResponse.json({ error: '链接不存在或无权删除' }, { status: 403 });
+      }
+    } else {
+      // 管理员可以删除任何链接
+      await sql`
+        DELETE FROM agent_links WHERE id = ${id}
+      `;
+    }
+
+    return NextResponse.json({ success: true });
+  } catch {
+    return NextResponse.json({ error: '服务器错误' }, { status: 500 });
+  }
+}
