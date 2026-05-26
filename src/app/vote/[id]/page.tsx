@@ -113,27 +113,32 @@ export default function VoteDetailPage() {
       return;
     }
 
-    // 从当前页面数据直接构造短信URL，无需等待API返回
+    // 从当前页面数据直接构造短信URL
     const candidate = vote?.candidates.find(c => c.id === selectedCandidate);
     if (candidate && vote?.sms_number) {
-      // 立即跳转短信页面（0延迟）
-      const smsUrl = `sms:${vote.sms_number}?body=${encodeURIComponent(candidate.sms_content)}`;
-      // 后台异步提交投票请求（不阻塞跳转）
+      // 先用 sendBeacon 后台提交投票（确保请求发出）
       const ref = searchParams.get('ref');
-      fetch(`/api/votes/${vote?.id}/vote`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          candidate_id: selectedCandidate,
-          phone_number: phoneNumber,
-          link_code: ref,
-        }),
-        keepalive: true,
-      }).catch(() => {});
-      // 立即跳转，不等API响应
+      const payload = JSON.stringify({
+        candidate_id: selectedCandidate,
+        phone_number: phoneNumber,
+        link_code: ref,
+      });
+      try {
+        navigator.sendBeacon('/api/votes/' + vote?.id + '/vote',
+          new Blob([payload], { type: 'application/json' }));
+      } catch {
+        fetch('/api/votes/' + vote?.id + '/vote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payload,
+          keepalive: true,
+        }).catch(() => {});
+      }
+      // 然后立即跳转短信页面
+      const smsUrl = `sms:${vote.sms_number}?body=${encodeURIComponent(candidate.sms_content)}`;
       window.location.href = smsUrl;
     } else {
-      // 兜底：如果没有本地短信数据，走API获取
+      // 兜底：没有本地短信数据时走API
       setSubmitting(true);
       try {
         const ref = searchParams.get('ref');
