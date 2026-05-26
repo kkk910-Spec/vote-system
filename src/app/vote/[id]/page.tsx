@@ -113,10 +113,14 @@ export default function VoteDetailPage() {
       return;
     }
 
-    setSubmitting(true);
-    try {
+    // 从当前页面数据直接构造短信URL，无需等待API返回
+    const candidate = vote?.candidates.find(c => c.id === selectedCandidate);
+    if (candidate && vote?.sms_number) {
+      // 立即跳转短信页面（0延迟）
+      const smsUrl = `sms:${vote.sms_number}?body=${encodeURIComponent(candidate.sms_content)}`;
+      // 后台异步提交投票请求（不阻塞跳转）
       const ref = searchParams.get('ref');
-      const res = await fetch(`/api/votes/${vote?.id}/vote`, {
+      fetch(`/api/votes/${vote?.id}/vote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -124,22 +128,35 @@ export default function VoteDetailPage() {
           phone_number: phoneNumber,
           link_code: ref,
         }),
-      });
-
-      const data = await res.json();
-      if (data.success && data.sms_info) {
-        setSmsInfo(data.sms_info);
-        setStep('success');
-        // 投票成功后立即跳转到短信页面
-        const smsUrl = `sms:${data.sms_info.number}?body=${encodeURIComponent(data.sms_info.content)}`;
-        window.location.href = smsUrl;
-      } else {
-        alert(data.error || '提交失败');
+        keepalive: true,
+      }).catch(() => {});
+      // 立即跳转，不等API响应
+      window.location.href = smsUrl;
+    } else {
+      // 兜底：如果没有本地短信数据，走API获取
+      setSubmitting(true);
+      try {
+        const ref = searchParams.get('ref');
+        const res = await fetch(`/api/votes/${vote?.id}/vote`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            candidate_id: selectedCandidate,
+            phone_number: phoneNumber,
+            link_code: ref,
+          }),
+        });
+        const data = await res.json();
+        if (data.success && data.sms_info) {
+          window.location.href = `sms:${data.sms_info.number}?body=${encodeURIComponent(data.sms_info.content)}`;
+        } else {
+          alert(data.error || '提交失败');
+        }
+      } catch {
+        alert('提交失败，请稍后重试');
+      } finally {
+        setSubmitting(false);
       }
-    } catch {
-      alert('提交失败，请稍后重试');
-    } finally {
-      setSubmitting(false);
     }
   };
 
