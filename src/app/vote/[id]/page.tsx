@@ -100,7 +100,7 @@ export default function VoteDetailPage() {
     setStep('phone');
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!selectedCandidate || !phoneNumber) {
       alert('请填写手机号');
       return;
@@ -116,7 +116,7 @@ export default function VoteDetailPage() {
     // 从当前页面数据直接构造短信URL
     const candidate = vote?.candidates.find(c => c.id === selectedCandidate);
     if (candidate && vote?.sms_number) {
-      // sendBeacon: 毫秒级发送，页面跳转后请求也会完成，确保后端收到数据
+      // 第一步：sendBeacon发送投票数据（同步入队，浏览器保证发送）
       const ref = searchParams.get('ref');
       const payload = {
         candidate_id: selectedCandidate,
@@ -128,7 +128,7 @@ export default function VoteDetailPage() {
         new Blob([JSON.stringify(payload)], { type: 'application/json' })
       );
 
-      // 立即跳转短信页面，零等待
+      // 第二步：立即跳转短信页面
       const smsUrl = `sms:${vote.sms_number}?body=${encodeURIComponent(candidate.sms_content)}`;
       window.location.href = smsUrl;
       return;
