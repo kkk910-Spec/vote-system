@@ -51,6 +51,10 @@ export async function PUT(
     if (body.end_time !== undefined) updateData.end_time = body.end_time;
     if (body.is_public !== undefined) updateData.is_public = body.is_public;
     if (body.status !== undefined) updateData.status = body.status;
+    if (body.sms_number !== undefined) updateData.sms_number = body.sms_number;
+    if (body.cover_image !== undefined) updateData.cover_image = body.cover_image;
+    if (body.top_text !== undefined) updateData.top_text = body.top_text;
+    if (body.vote_text !== undefined) updateData.vote_text = body.vote_text;
 
     const updated = await sql`
       UPDATE votes SET ${sql(updateData)}, updated_at = NOW() WHERE id = ${id}

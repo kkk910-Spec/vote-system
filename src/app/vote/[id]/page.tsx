@@ -59,6 +59,7 @@ export default function VoteDetailPage() {
   const [smsInfo, setSmsInfo] = useState<{ number: string; content: string } | null>(null);
   const [countdown, setCountdown] = useState(5);
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
+  const [smsRedirected, setSmsRedirected] = useState(false);
 
   const fetchVote = async () => {
     try {
@@ -85,8 +86,9 @@ export default function VoteDetailPage() {
 
   // 倒计时自动跳转短信
   useEffect(() => {
-    if (step !== 'countdown' || !smsInfo) return;
+    if (step !== 'countdown' || !smsInfo || smsRedirected) return;
     if (countdown <= 0) {
+      setSmsRedirected(true);
       if (isWechat()) {
         // 微信环境：复制内容并保持页面显示手动指引
         copyToClipboard(smsInfo.content);
@@ -99,7 +101,7 @@ export default function VoteDetailPage() {
     }
     const timer = setTimeout(() => setCountdown(prev => prev - 1), 1000);
     return () => clearTimeout(timer);
-  }, [step, countdown, smsInfo]);
+  }, [step, countdown, smsInfo, smsRedirected]);
 
   const getTotalVotes = (candidates: Candidate[]) => {
     return candidates.reduce((sum, c) => sum + c.vote_count, 0);

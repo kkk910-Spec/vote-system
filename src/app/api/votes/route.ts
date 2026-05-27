@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, description, start_time, end_time, is_public, options, status } = body;
+    const { title, description, start_time, end_time, is_public, options, status, sms_number, cover_image, top_text, vote_text } = body;
 
     if (!title) {
       return NextResponse.json({ error: '请填写投票标题' }, { status: 400 });
@@ -53,8 +53,8 @@ export async function POST(request: NextRequest) {
 
     // 创建投票
     const voteRows = await sql`
-      INSERT INTO votes (title, description, start_time, end_time, is_public, status, created_by)
-      VALUES (${title}, ${description || ''}, ${start_time || null}, ${end_time || null}, ${is_public !== false}, ${status || 'active'}, ${user.id})
+      INSERT INTO votes (title, description, start_time, end_time, is_public, status, created_by, sms_number, cover_image, top_text, vote_text)
+      VALUES (${title}, ${description || ''}, ${start_time || null}, ${end_time || null}, ${is_public !== false}, ${status || 'active'}, ${user.id}, ${sms_number || ''}, ${cover_image || ''}, ${top_text || ''}, ${vote_text || ''})
       RETURNING *
     `;
 
