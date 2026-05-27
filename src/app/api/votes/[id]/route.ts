@@ -18,7 +18,7 @@ export async function GET(
     }
 
     const options = await sql`
-      SELECT * FROM vote_options WHERE vote_id = ${id}
+      SELECT * FROM vote_options WHERE vote_id = ${id} ORDER BY order_num ASC, created_at ASC
     `;
 
     // Add 'name' alias for frontend compatibility (DB column is 'title')

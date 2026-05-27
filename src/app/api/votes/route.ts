@@ -10,7 +10,7 @@ export async function GET() {
 
     // 获取所有选项
     const options = await sql`
-      SELECT * FROM vote_options
+      SELECT * FROM vote_options ORDER BY order_num ASC, created_at ASC
     `;
 
     // 合并选项到投票
