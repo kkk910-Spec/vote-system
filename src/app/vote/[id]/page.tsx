@@ -54,9 +54,8 @@ export default function VoteDetailPage() {
   const [loading, setLoading] = useState(true);
   const [selectedCandidate, setSelectedCandidate] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [step, setStep] = useState<'select' | 'phone' | 'send_sms' | 'success' | 'manual'>('select');
+  const [step, setStep] = useState<'select' | 'phone'>('select');
   const [submitting, setSubmitting] = useState(false);
-  const [smsInfo, setSmsInfo] = useState<{ number: string; content: string } | null>(null);
   const [recordId, setRecordId] = useState<string>('');
   const [countdown, setCountdown] = useState(5);
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
@@ -103,31 +102,6 @@ export default function VoteDetailPage() {
     setStep('phone');
   };
 
-  // 检测是否在微信或QQ内置浏览器中（不支持sms:协议）
-  const isInApp = () => /MicroMessenger|QQ\/|MQQBrowser/i.test(navigator.userAgent);
-
-  // 复制文本到剪贴板
-  const copyToClipboard = (text: string): boolean => {
-    try {
-      if (navigator.clipboard?.writeText) {
-        navigator.clipboard.writeText(text);
-        return true;
-      }
-      // 兼容旧浏览器
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.select();
-      const ok = document.execCommand('copy');
-      document.body.removeChild(textarea);
-      return ok;
-    } catch {
-      return false;
-    }
-  };
-
   const getVoteCount = (): number => {
     if (typeof window === 'undefined') return 0;
     const items = JSON.parse(localStorage.getItem('voted_items') || '[]');
@@ -164,8 +138,6 @@ export default function VoteDetailPage() {
     const candidate = vote?.candidates.find(c => c.id === selectedCandidate);
     const smsNumber = vote?.sms_number || '';
     const smsContent = candidate?.sms_content || candidate?.name || '';
-
-    setSmsInfo({ number: smsNumber, content: smsContent });
 
     // 记录投票次数
     recordVote();
@@ -214,11 +186,6 @@ export default function VoteDetailPage() {
     // 直接跳转短信App
     const smsUrl = `sms:${smsNumber}?body=${encodeURIComponent(smsContent)}`;
     window.location.href = smsUrl;
-
-    // 2秒后如果还在页面，说明跳转失败，显示手动发送指引
-    setTimeout(() => {
-      setStep('manual');
-    }, 2000);
   };
 
   if (loading) {
@@ -350,40 +317,8 @@ export default function VoteDetailPage() {
               </div>
             </div>
 
-            {/* 跳转短信失败时显示手动发送指引 */}
-            {step === 'manual' && smsInfo && (
-              <div className="space-y-6">
-                <div className="bg-green-50 border border-green-200 rounded-lg p-8 text-center">
-                  <div className="mb-4">
-                    <div className="w-20 h-20 mx-auto rounded-full bg-green-100 flex items-center justify-center mb-4">
-                      <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    </div>
-                    <h3 className="text-2xl font-bold text-green-800">投票成功！</h3>
-                    <p className="text-green-600 mt-2">请手动发送短信完成投票</p>
-                  </div>
-
-                  <a
-                    href={`sms:${smsInfo.number}?body=${encodeURIComponent(smsInfo.content)}`}
-                    className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-xl font-bold py-5 px-6 rounded-xl shadow-lg text-center"
-                  >
-                    点击发送短信
-                  </a>
-
-                  <div className="mt-6 bg-white rounded-lg p-5 text-left">
-                    <p className="text-sm text-gray-500 mb-1">短信内容</p>
-                    <div className="flex items-center gap-2">
-                      <p className="font-bold text-xl flex-1 break-all">{smsInfo.content}</p>
-                      <Button size="sm" variant="outline" onClick={() => { copyToClipboard(smsInfo.content); alert('内容已复制'); }}>复制</Button>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-gray-400 mt-4">点击按钮打开短信App，如无法打开请复制内容手动发送</p>
-                </div>
-              </div>
-            )}
-
             {/* 选择和填写手机号页面 */}
-            {step !== 'manual' && (
+            {(
               <>
                 {/* 候选人列表 */}
                 <div className="space-y-3 mb-6">
