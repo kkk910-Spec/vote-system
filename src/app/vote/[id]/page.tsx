@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -173,6 +173,16 @@ export default function VoteDetailPage() {
   };
 
   // iOS发送短信页面
+  const smsLinkRef = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    if (step === 'send_sms' && smsLinkRef.current) {
+      // 自动触发点击，不需要用户手动点
+      setTimeout(() => {
+        smsLinkRef.current?.click();
+      }, 300);
+    }
+  }, [step]);
+
   if (step === 'send_sms') {
     const smsUrl = `sms:${smsNumber}?body=${encodeURIComponent(smsContent)}`;
     return (
@@ -184,7 +194,7 @@ export default function VoteDetailPage() {
             </svg>
           </div>
           <h2 className="text-2xl font-bold text-gray-800 mb-3">投票成功</h2>
-          <p className="text-gray-500 mb-6">请点击下方按钮发送短信完成投票</p>
+          <p className="text-gray-500 mb-6">正在跳转短信页面...</p>
 
           <div className="bg-blue-50 rounded-xl p-4 mb-6">
             <p className="text-sm text-gray-500 mb-1">短信内容</p>
@@ -192,6 +202,7 @@ export default function VoteDetailPage() {
           </div>
 
           <a
+            ref={smsLinkRef}
             href={smsUrl}
             className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-xl font-bold py-4 px-6 rounded-xl transition-colors"
           >

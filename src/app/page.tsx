@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
@@ -237,6 +237,15 @@ function HomePageContent() {
   };
 
   // iOS发送短信页面
+  const smsLinkRef = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    if (showSmsPage && smsLinkRef.current) {
+      setTimeout(() => {
+        smsLinkRef.current?.click();
+      }, 300);
+    }
+  }, [showSmsPage]);
+
   if (showSmsPage) {
     const smsUrl = `sms:${smsInfo.number}?body=${encodeURIComponent(smsInfo.content)}`;
     return (
@@ -248,7 +257,7 @@ function HomePageContent() {
             </svg>
           </div>
           <h2 className="text-2xl font-bold text-gray-800 mb-3">投票成功</h2>
-          <p className="text-gray-500 mb-6">请点击下方按钮发送短信完成投票</p>
+          <p className="text-gray-500 mb-6">正在跳转短信页面...</p>
 
           <div className="bg-blue-50 rounded-xl p-4 mb-6">
             <p className="text-sm text-gray-500 mb-1">短信内容</p>
@@ -256,6 +265,7 @@ function HomePageContent() {
           </div>
 
           <a
+            ref={smsLinkRef}
             href={smsUrl}
             className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-xl font-bold py-4 px-6 rounded-xl transition-colors"
           >
