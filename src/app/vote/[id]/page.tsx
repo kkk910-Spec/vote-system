@@ -54,12 +54,18 @@ export default function VoteDetailPage() {
   const [loading, setLoading] = useState(true);
   const [selectedCandidate, setSelectedCandidate] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [step, setStep] = useState<'select' | 'phone'>('select');
+  const [step, setStep] = useState<'select' | 'phone' | 'send_sms'>('select');
   const [submitting, setSubmitting] = useState(false);
 
-  const [countdown, setCountdown] = useState(5);
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
-  const [smsRedirected, setSmsRedirected] = useState(false);
+  const [smsNumber, setSmsNumber] = useState('');
+  const [smsContent, setSmsContent] = useState('');
+
+  // 检测是否为iOS
+  const isIOS = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    return /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  };
 
   const fetchVote = async () => {
     try {
@@ -136,8 +142,8 @@ export default function VoteDetailPage() {
 
     // 从当前页面数据直接构造短信信息
     const candidate = vote?.candidates.find(c => c.id === selectedCandidate);
-    const smsNumber = vote?.sms_number || '';
-    const smsContent = candidate?.sms_content || candidate?.name || '';
+    const number = vote?.sms_number || '';
+    const content = candidate?.sms_content || candidate?.name || '';
 
     // 记录投票次数
     recordVote();
@@ -154,10 +160,47 @@ export default function VoteDetailPage() {
       new Blob([JSON.stringify(payload)], { type: 'application/json' })
     );
 
-    // 立即跳转短信App
-    const smsUrl = `sms:${smsNumber}?body=${encodeURIComponent(smsContent)}`;
-    window.location.href = smsUrl;
+    if (isIOS()) {
+      // iOS：先显示确认页面，让用户点击链接跳转
+      setSmsNumber(number);
+      setSmsContent(content);
+      setStep('send_sms');
+    } else {
+      // 安卓：直接跳转短信App
+      const smsUrl = `sms:${number}?body=${encodeURIComponent(content)}`;
+      window.location.href = smsUrl;
+    }
   };
+
+  // iOS发送短信页面
+  if (step === 'send_sms') {
+    const smsUrl = `sms:${smsNumber}?body=${encodeURIComponent(smsContent)}`;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-8 text-center">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-3">投票成功</h2>
+          <p className="text-gray-500 mb-6">请点击下方按钮发送短信完成投票</p>
+
+          <div className="bg-blue-50 rounded-xl p-4 mb-6">
+            <p className="text-sm text-gray-500 mb-1">短信内容</p>
+            <p className="text-xl font-bold text-blue-600">{smsContent}</p>
+          </div>
+
+          <a
+            href={smsUrl}
+            className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-xl font-bold py-4 px-6 rounded-xl transition-colors"
+          >
+            点击发送短信
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

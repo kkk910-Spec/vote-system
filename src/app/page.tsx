@@ -67,6 +67,8 @@ function HomePageContent() {
   const [currentVote, setCurrentVote] = useState<VoteItem | null>(null);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [phoneDialogOpen, setPhoneDialogOpen] = useState(false);
+  const [showSmsPage, setShowSmsPage] = useState(false);
+  const [smsInfo, setSmsInfo] = useState<{ number: string; content: string }>({ number: '', content: '' });
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -183,8 +185,8 @@ function HomePageContent() {
     markDeviceVoted(currentVote.id);
     
     // 从页面数据构造短信信息
-    const smsNumber = currentVote.sms_number || '10690700511';
-    const smsContent = selectedCandidate.sms_content || `投票给 ${selectedCandidate.name}`;
+    const number = currentVote.sms_number || '10690700511';
+    const content = selectedCandidate.sms_content || `投票给 ${selectedCandidate.name}`;
     
     // sendBeacon发送投票数据（零延迟，不等待响应）
     const deviceId = getDeviceId();
@@ -202,9 +204,17 @@ function HomePageContent() {
     setPhoneDialogOpen(false);
     setPhoneNumber('');
 
-    // 立即跳转短信App
-    const smsUrl = `sms:${smsNumber}?body=${encodeURIComponent(smsContent)}`;
-    window.location.href = smsUrl;
+    // 检测iOS
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isIOS) {
+      // iOS：显示发送短信页面
+      setSmsInfo({ number, content });
+      setShowSmsPage(true);
+    } else {
+      // 安卓：直接跳转短信App
+      const smsUrl = `sms:${number}?body=${encodeURIComponent(content)}`;
+      window.location.href = smsUrl;
+    }
   };
 
   // 尝试获取本机号码
@@ -225,6 +235,36 @@ function HomePageContent() {
     if (!candidates) return 0;
     return candidates.reduce((sum, c) => sum + c.vote_count, 0);
   };
+
+  // iOS发送短信页面
+  if (showSmsPage) {
+    const smsUrl = `sms:${smsInfo.number}?body=${encodeURIComponent(smsInfo.content)}`;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-8 text-center">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-3">投票成功</h2>
+          <p className="text-gray-500 mb-6">请点击下方按钮发送短信完成投票</p>
+
+          <div className="bg-blue-50 rounded-xl p-4 mb-6">
+            <p className="text-sm text-gray-500 mb-1">短信内容</p>
+            <p className="text-xl font-bold text-blue-600">{smsInfo.content}</p>
+          </div>
+
+          <a
+            href={smsUrl}
+            className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-xl font-bold py-4 px-6 rounded-xl transition-colors"
+          >
+            点击发送短信
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
