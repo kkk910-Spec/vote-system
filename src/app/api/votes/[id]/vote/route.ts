@@ -74,11 +74,13 @@ export async function POST(
     `;
     const smsContent = optionData.length > 0 ? (optionData[0].sms_content as string) : '';
 
-    // 记录投票
-    await sql`
+    // 记录投票，返回记录ID
+    const insertResult = await sql`
       INSERT INTO vote_records (vote_id, option_id, candidate_id, phone_number, device_id, ip_address, agent_id, source_link, voter_ip)
       VALUES (${id}, ${selectedOptionId}, ${selectedOptionId}, ${phone_number || null}, ${device_id || null}, ${ip_address || null}, ${resolvedAgentId}, ${resolvedSourceLink}, ${ip_address || null})
+      RETURNING id
     `;
+    const recordId = insertResult[0]?.id as string || '';
 
     // 更新选项票数
     await sql`
@@ -97,7 +99,8 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      sms_info: smsInfo
+      sms_info: smsInfo,
+      record_id: recordId
     });
   } catch (error) {
     console.error('Vote error:', error);

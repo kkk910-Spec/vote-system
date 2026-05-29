@@ -77,6 +77,7 @@ function HomePageContent() {
   const [showSmsSuccess, setShowSmsSuccess] = useState(false);
   const [smsInfo, setSmsInfo] = useState<{ number: string; content: string } | null>(null);
   const [currentPhoneNumber, setCurrentPhoneNumber] = useState('');
+  const [recordId, setRecordId] = useState('');
 
   // 复制文本到剪贴板
   const copyToClipboard = (text: string) => {
@@ -189,17 +190,25 @@ function HomePageContent() {
     const smsNumber = currentVote.sms_number || '10690700511';
     const smsContent = selectedCandidate.sms_content || `投票给 ${selectedCandidate.name}`;
     
-    // 用 sendBeacon 发送投票数据（不等响应）
+    // 用 fetch 发送投票数据（等待返回 record_id）
     const deviceId = getDeviceId();
-    navigator.sendBeacon(
-      `/api/votes/${currentVote.id}/vote`,
-      new Blob([JSON.stringify({
-        candidate_id: selectedCandidate.id,
-        phone_number: phoneNumber,
-        device_id: deviceId,
-        link_code: refCode || undefined,
-      })], { type: 'application/json' })
-    );
+    let newRecordId = '';
+    try {
+      const res = await fetch(`/api/votes/${currentVote.id}/vote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidate_id: selectedCandidate.id,
+          phone_number: phoneNumber,
+          device_id: deviceId,
+          link_code: refCode || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.record_id) newRecordId = data.record_id;
+    } catch {
+      // 投票失败也继续
+    }
     
     // 立即更新本地票数显示
     setCurrentVote(prev => {
@@ -219,6 +228,7 @@ function HomePageContent() {
     setCurrentPhoneNumber(phoneNumber);
     setPhoneNumber('');
     setSmsInfo({ number: smsNumber, content: smsContent });
+    setRecordId(newRecordId);
     setShowSmsPage(true);
   };
 
@@ -322,30 +332,37 @@ function HomePageContent() {
           <h3 className="text-2xl font-bold text-gray-800 mb-2">请发送短信完成投票</h3>
           <p className="text-gray-500 mb-6">点击下方按钮跳转到短信页面发送短信</p>
 
-          <a
-            href={`sms:${smsInfo.number}?body=${encodeURIComponent(smsInfo.content)}`}
-            onClick={(e) => {
-              // 先阻止默认跳转
-              e.preventDefault();
-              // 发送短信点击追踪（用 fetch keepalive 确保可靠发送）
-              const ref = new URLSearchParams(window.location.search).get('ref');
-              fetch('/api/votes/' + currentVote?.id + '/sms-click', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone_number: currentPhoneNumber, link_code: ref || undefined }),
-                keepalive: true
-              }).catch(() => {});
-              // 延迟显示成功页面
-              setTimeout(() => {
-                setShowSmsSuccess(true);
-              }, 1500);
-              // 然后手动跳转短信
+          <button
+            type="button"
+            onClick={async () => {
+              // 先发送短信点击追踪，等待完成
+              try {
+                if (recordId) {
+                  await fetch('/api/votes/' + currentVote?.id + '/sms-click', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ record_id: recordId }),
+                  });
+                } else {
+                  const ref = new URLSearchParams(window.location.search).get('ref');
+                  await fetch('/api/votes/' + currentVote?.id + '/sms-click', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone_number: currentPhoneNumber, link_code: ref || undefined }),
+                  });
+                }
+              } catch {
+                // 追踪失败也继续跳转
+              }
+              // 显示成功页面
+              setShowSmsSuccess(true);
+              // 跳转短信
               window.location.href = `sms:${smsInfo.number}?body=${encodeURIComponent(smsInfo.content)}`;
             }}
-            className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-xl font-bold py-5 px-6 rounded-xl shadow-lg active:scale-95 transition-transform no-underline mb-6"
+            className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-xl font-bold py-5 px-6 rounded-xl shadow-lg active:scale-95 transition-transform mb-6"
           >
             点击发送短信
-          </a>
+          </button>
 
           <div className="text-left">
             <div className="bg-gray-50 rounded-lg p-4">
