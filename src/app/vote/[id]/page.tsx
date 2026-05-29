@@ -89,11 +89,11 @@ export default function VoteDetailPage() {
     if (step !== 'countdown' || !smsInfo || smsRedirected) return;
     if (countdown <= 0) {
       setSmsRedirected(true);
-      if (isWechat()) {
-        // 微信环境：复制内容并保持页面显示手动指引
+      if (isInApp()) {
+        // 微信/QQ环境：复制内容并保持页面显示手动指引
         copyToClipboard(smsInfo.content);
       } else {
-        // 非微信：跳转短信App
+        // 非微信/QQ：跳转短信App
         const smsUrl = `sms:${smsInfo.number}?body=${encodeURIComponent(smsInfo.content)}`;
         window.location.href = smsUrl;
       }
@@ -121,8 +121,8 @@ export default function VoteDetailPage() {
     setStep('phone');
   };
 
-  // 检测是否在微信浏览器中
-  const isWechat = () => /MicroMessenger/i.test(navigator.userAgent);
+  // 检测是否在微信或QQ内置浏览器中（不支持sms:协议）
+  const isInApp = () => /MicroMessenger|QQ\/|MQQBrowser/i.test(navigator.userAgent);
 
   // 复制文本到剪贴板
   const copyToClipboard = (text: string): boolean => {
@@ -319,7 +319,7 @@ export default function VoteDetailPage() {
                       <span className="text-4xl font-bold text-blue-600">{countdown}</span>
                     </div>
                     <h3 className="text-xl font-bold text-blue-800 mb-2">
-                      {countdown > 0 ? `请稍等，${countdown}秒后自动跳转短信` : isWechat() ? '请手动发送短信' : '正在跳转短信...'}
+                      {countdown > 0 ? `请稍等，${countdown}秒后自动跳转短信` : isInApp() ? '请手动发送短信' : '正在跳转短信...'}
                     </h3>
                     <p className="text-blue-600">投票信息提交中，请勿关闭页面...</p>
                   </div>
@@ -328,10 +328,10 @@ export default function VoteDetailPage() {
                     <p className="font-bold text-lg">{smsInfo.content}</p>
                     <p className="text-sm text-gray-500 mt-2">收件人：{smsInfo.number}</p>
                   </div>
-                  {countdown <= 0 && isWechat() && (
+                  {countdown <= 0 && isInApp() && (
                     <div className="space-y-3 mt-4">
                       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                        <p className="text-sm text-yellow-800 font-medium">微信内无法直接打开短信，请手动操作：</p>
+                        <p className="text-sm text-yellow-800 font-medium">当前环境无法直接打开短信，请手动操作：</p>
                       </div>
                       <div className="flex gap-2">
                         <Button

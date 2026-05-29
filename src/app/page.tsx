@@ -201,16 +201,35 @@ function HomePageContent() {
         setPhoneDialogOpen(false);
         setPhoneNumber('');
         
-        // 立即跳转到短信页面
-        const smsNumber = data.sms_info.number || '106988881700511';
+        // 跳转到短信页面
+        const smsNumber = data.sms_info.number || '10690700511';
         const smsContent = data.sms_info.content || selectedCandidate.sms_content || `投票给 ${selectedCandidate.name}`;
         
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        const smsLink = isIOS 
-          ? `sms://${smsNumber}&body=${encodeURIComponent(smsContent)}`
-          : `sms:${smsNumber}?body=${encodeURIComponent(smsContent)}`;
+        const isInAppBrowser = /MicroMessenger|QQ\/|MQQBrowser/i.test(navigator.userAgent);
         
-        window.location.href = smsLink;
+        if (isInAppBrowser) {
+          // 微信/QQ环境：复制短信内容并提示手动发送
+          try {
+            navigator.clipboard?.writeText(smsContent);
+          } catch {
+            // 降级复制
+            const ta = document.createElement('textarea');
+            ta.value = smsContent;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+          }
+          alert(`短信内容已复制！\n\n请手动打开短信App：\n收件人：${smsNumber}\n内容：${smsContent}`);
+        } else {
+          // 正常浏览器：跳转短信App
+          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+          const smsLink = isIOS 
+            ? `sms://${smsNumber}&body=${encodeURIComponent(smsContent)}`
+            : `sms:${smsNumber}?body=${encodeURIComponent(smsContent)}`;
+          
+          window.location.href = smsLink;
+        }
       } else {
         alert(data.error || '投票失败');
       }
@@ -223,12 +242,12 @@ function HomePageContent() {
 
   // 尝试获取本机号码
   const handleGetPhoneNumber = () => {
-    // 检测是否在微信浏览器中
-    const isWechat = /MicroMessenger/i.test(navigator.userAgent);
+    // 检测是否在微信/QQ内置浏览器中
+    const isInAppBrowser = /MicroMessenger|QQ\/|MQQBrowser/i.test(navigator.userAgent);
     
-    if (isWechat) {
-      // 微信浏览器提示
-      alert('微信环境下暂不支持自动获取手机号。\n\n请手动输入您的手机号码，感谢您的理解！');
+    if (isInAppBrowser) {
+      // 微信/QQ浏览器提示
+      alert('当前环境下暂不支持自动获取手机号。\n\n请手动输入您的手机号码，感谢您的理解！');
     } else {
       // 其他浏览器提示
       alert('由于浏览器安全限制，无法直接获取手机号。\n\n请手动输入您的手机号码。');
