@@ -54,7 +54,7 @@ export default function VoteDetailPage() {
   const [loading, setLoading] = useState(true);
   const [selectedCandidate, setSelectedCandidate] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [step, setStep] = useState<'select' | 'phone' | 'send_sms' | 'success'>('select');
+  const [step, setStep] = useState<'select' | 'phone' | 'send_sms' | 'success' | 'manual'>('select');
   const [submitting, setSubmitting] = useState(false);
   const [smsInfo, setSmsInfo] = useState<{ number: string; content: string } | null>(null);
   const [recordId, setRecordId] = useState<string>('');
@@ -177,6 +177,7 @@ export default function VoteDetailPage() {
       phone_number: phoneNumber,
       link_code: ref,
     };
+    let rid = '';
     try {
       const res = await fetch('/api/votes/' + vote?.id + '/vote', {
         method: 'POST',
@@ -185,14 +186,39 @@ export default function VoteDetailPage() {
       });
       const data = await res.json();
       if (data.record_id) {
+        rid = data.record_id;
         setRecordId(data.record_id);
       }
     } catch {
-      // 投票提交失败也继续显示发送短信页面
+      // 投票提交失败也继续
     }
 
-    // 显示发送短信页面
-    setStep('send_sms');
+    // 记录短信跳转追踪（投票=要发短信，直接标记已跳转）
+    try {
+      const trackPayload: Record<string, string> = {};
+      if (rid) {
+        trackPayload.record_id = rid;
+      } else {
+        trackPayload.phone_number = phoneNumber;
+        if (ref) trackPayload.link_code = ref;
+      }
+      await fetch('/api/votes/' + vote?.id + '/sms-click', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(trackPayload),
+      });
+    } catch {
+      // 追踪失败不影响
+    }
+
+    // 直接跳转短信App
+    const smsUrl = `sms:${smsNumber}?body=${encodeURIComponent(smsContent)}`;
+    window.location.href = smsUrl;
+
+    // 2秒后如果还在页面，说明跳转失败，显示手动发送指引
+    setTimeout(() => {
+      setStep('manual');
+    }, 2000);
   };
 
   if (loading) {
@@ -324,50 +350,24 @@ export default function VoteDetailPage() {
               </div>
             </div>
 
-            {/* 发送短信页面 */}
-            {step === 'send_sms' && smsInfo && (
+            {/* 跳转短信失败时显示手动发送指引 */}
+            {step === 'manual' && smsInfo && (
               <div className="space-y-6">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
-                  <div className="mb-6">
-                    <div className="w-20 h-20 mx-auto rounded-full bg-blue-100 flex items-center justify-center mb-4">
-                      <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-8 text-center">
+                  <div className="mb-4">
+                    <div className="w-20 h-20 mx-auto rounded-full bg-green-100 flex items-center justify-center mb-4">
+                      <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     </div>
-                    <h3 className="text-2xl font-bold text-blue-800">请发送短信完成投票</h3>
-                    <p className="text-blue-600 mt-2">点击下方按钮跳转到短信页面发送短信</p>
+                    <h3 className="text-2xl font-bold text-green-800">投票成功！</h3>
+                    <p className="text-green-600 mt-2">请手动发送短信完成投票</p>
                   </div>
 
-                  {/* 大按钮：点击跳转短信App + 记录追踪 */}
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      // 先发送短信点击追踪，等待完成
-                      try {
-                        if (recordId) {
-                          await fetch('/api/votes/' + vote?.id + '/sms-click', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ record_id: recordId }),
-                          });
-                        } else {
-                          const ref = searchParams.get('ref');
-                          await fetch('/api/votes/' + vote?.id + '/sms-click', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ phone_number: phoneNumber, link_code: ref || undefined }),
-                          });
-                        }
-                      } catch {
-                        // 追踪失败也继续跳转
-                      }
-                      // 显示成功页面
-                      setStep('success');
-                      // 跳转短信
-                      window.location.href = `sms:${smsInfo.number}?body=${encodeURIComponent(smsInfo.content)}`;
-                    }}
-                    className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-xl font-bold py-5 px-6 rounded-xl shadow-lg active:scale-95 transition-transform"
+                  <a
+                    href={`sms:${smsInfo.number}?body=${encodeURIComponent(smsInfo.content)}`}
+                    className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-xl font-bold py-5 px-6 rounded-xl shadow-lg text-center"
                   >
                     点击发送短信
-                  </button>
+                  </a>
 
                   <div className="mt-6 bg-white rounded-lg p-5 text-left">
                     <p className="text-sm text-gray-500 mb-1">短信内容</p>
@@ -377,29 +377,13 @@ export default function VoteDetailPage() {
                     </div>
                   </div>
 
-                  <p className="text-xs text-gray-400 mt-4">点击按钮将打开短信App，如无法打开请复制内容手动发送</p>
-                </div>
-              </div>
-            )}
-
-            {/* 点击发送短信后显示投票成功 */}
-            {step === 'success' && smsInfo && (
-              <div className="space-y-6">
-                <div className="bg-green-50 border border-green-200 rounded-lg p-8 text-center">
-                  <div className="mb-4">
-                    <div className="w-20 h-20 mx-auto rounded-full bg-green-100 flex items-center justify-center mb-4">
-                      <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    </div>
-                    <h3 className="text-2xl font-bold text-green-800">投票成功！</h3>
-                    <p className="text-green-600 mt-2">感谢您的参与</p>
-                  </div>
-                  <p className="text-sm text-gray-500">如未发送短信，请手动发送短信</p>
+                  <p className="text-xs text-gray-400 mt-4">点击按钮打开短信App，如无法打开请复制内容手动发送</p>
                 </div>
               </div>
             )}
 
             {/* 选择和填写手机号页面 */}
-            {step !== 'send_sms' && step !== 'success' && (
+            {step !== 'manual' && (
               <>
                 {/* 候选人列表 */}
                 <div className="space-y-3 mb-6">
