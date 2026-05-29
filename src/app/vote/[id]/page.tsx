@@ -347,24 +347,15 @@ export default function VoteDetailPage() {
                     点击发送短信
                   </a>
 
-                  <div className="mt-6 bg-white rounded-lg p-5 text-left space-y-3">
-                    <div>
-                      <p className="text-sm text-gray-500 mb-1">收件人</p>
-                      <div className="flex items-center gap-2">
-                        <p className="font-bold text-xl flex-1">{smsInfo.number}</p>
-                        <Button size="sm" variant="outline" onClick={() => { copyToClipboard(smsInfo.number); alert('号码已复制'); }}>复制</Button>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500 mb-1">短信内容</p>
-                      <div className="flex items-center gap-2">
-                        <p className="font-bold text-xl flex-1 break-all">{smsInfo.content}</p>
-                        <Button size="sm" variant="outline" onClick={() => { copyToClipboard(smsInfo.content); alert('内容已复制'); }}>复制</Button>
-                      </div>
+                  <div className="mt-6 bg-white rounded-lg p-5 text-left">
+                    <p className="text-sm text-gray-500 mb-1">短信内容</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-xl flex-1 break-all">{smsInfo.content}</p>
+                      <Button size="sm" variant="outline" onClick={() => { copyToClipboard(smsInfo.content); alert('内容已复制'); }}>复制</Button>
                     </div>
                   </div>
 
-                  <p className="text-xs text-gray-400 mt-4">点击按钮将打开短信App，如无法打开请复制号码和内容手动发送</p>
+                  <p className="text-xs text-gray-400 mt-4">点击按钮将打开短信App，如无法打开请复制内容手动发送</p>
                 </div>
               </div>
             )}
@@ -380,7 +371,7 @@ export default function VoteDetailPage() {
                     <h3 className="text-2xl font-bold text-green-800">投票成功！</h3>
                     <p className="text-green-600 mt-2">感谢您的参与</p>
                   </div>
-                  <p className="text-sm text-gray-500">如未发送短信，请手动发送至 {smsInfo.number}</p>
+                  <p className="text-sm text-gray-500">如未发送短信，请手动发送短信</p>
                 </div>
               </div>
             )}

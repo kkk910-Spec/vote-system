@@ -342,14 +342,7 @@ function HomePageContent() {
             点击发送短信
           </a>
 
-          <div className="text-left space-y-3">
-            <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-sm text-gray-500 mb-1">收件人</p>
-              <div className="flex items-center gap-2">
-                <p className="font-bold text-xl flex-1">{smsInfo.number}</p>
-                <button className="text-sm text-blue-600 border border-blue-300 px-3 py-1 rounded" onClick={() => { copyToClipboard(smsInfo.number); alert('号码已复制'); }}>复制</button>
-              </div>
-            </div>
+          <div className="text-left">
             <div className="bg-gray-50 rounded-lg p-4">
               <p className="text-sm text-gray-500 mb-1">短信内容</p>
               <div className="flex items-center gap-2">
@@ -359,7 +352,7 @@ function HomePageContent() {
             </div>
           </div>
 
-          <p className="text-xs text-gray-400 mt-4">点击按钮将打开短信App，如无法打开请复制号码和内容手动发送</p>
+          <p className="text-xs text-gray-400 mt-4">点击按钮将打开短信App，如无法打开请复制内容手动发送</p>
         </div>
       </div>
     );
@@ -375,7 +368,7 @@ function HomePageContent() {
           </div>
           <h3 className="text-2xl font-bold text-gray-800 mb-2">投票成功！</h3>
           <p className="text-gray-500">感谢您的参与</p>
-          <p className="text-sm text-gray-400 mt-2">如未发送短信，请手动发送至 {smsInfo.number}</p>
+          <p className="text-sm text-gray-400 mt-2">如未发送短信，请手动发送短信</p>
         </div>
       </div>
     );
