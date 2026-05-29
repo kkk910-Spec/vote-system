@@ -74,7 +74,9 @@ function HomePageContent() {
   const [votedCandidateName, setVotedCandidateName] = useState('');
   const [alreadyVotedDialogOpen, setAlreadyVotedDialogOpen] = useState(false);
   const [showSmsPage, setShowSmsPage] = useState(false);
+  const [showSmsSuccess, setShowSmsSuccess] = useState(false);
   const [smsInfo, setSmsInfo] = useState<{ number: string; content: string } | null>(null);
+  const [currentPhoneNumber, setCurrentPhoneNumber] = useState('');
 
   // 复制文本到剪贴板
   const copyToClipboard = (text: string) => {
@@ -214,6 +216,7 @@ function HomePageContent() {
     
     // 关闭弹窗，显示发送短信页面
     setPhoneDialogOpen(false);
+    setCurrentPhoneNumber(phoneNumber);
     setPhoneNumber('');
     setSmsInfo({ number: smsNumber, content: smsContent });
     setShowSmsPage(true);
@@ -308,19 +311,32 @@ function HomePageContent() {
     );
   }
 
-  // 发送短信页面
-  if (showSmsPage && smsInfo) {
+  // 发送短信页面（点击前）
+  if (showSmsPage && !showSmsSuccess && smsInfo) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-blue-500 to-indigo-600 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-8 text-center">
-          <div className="w-20 h-20 mx-auto rounded-full bg-green-100 flex items-center justify-center mb-4">
-            <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          <div className="w-20 h-20 mx-auto rounded-full bg-blue-100 flex items-center justify-center mb-4">
+            <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
           </div>
-          <h3 className="text-2xl font-bold text-gray-800 mb-2">投票成功！</h3>
-          <p className="text-gray-500 mb-6">请点击下方按钮发送短信完成投票</p>
+          <h3 className="text-2xl font-bold text-gray-800 mb-2">请发送短信完成投票</h3>
+          <p className="text-gray-500 mb-6">点击下方按钮跳转到短信页面发送短信</p>
 
           <a
             href={`sms:${smsInfo.number}?body=${encodeURIComponent(smsInfo.content)}`}
+            onClick={() => {
+              // 发送短信点击追踪
+              const ref = new URLSearchParams(window.location.search).get('ref');
+              const trackPayload = { phone_number: currentPhoneNumber, link_code: ref || undefined };
+              navigator.sendBeacon(
+                '/api/votes/' + currentVote?.id + '/sms-click',
+                new Blob([JSON.stringify(trackPayload)], { type: 'application/json' })
+              );
+              // 延迟显示成功页面
+              setTimeout(() => {
+                setShowSmsSuccess(true);
+              }, 1500);
+            }}
             className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-xl font-bold py-5 px-6 rounded-xl shadow-lg active:scale-95 transition-transform no-underline mb-6"
           >
             点击发送短信
@@ -344,6 +360,22 @@ function HomePageContent() {
           </div>
 
           <p className="text-xs text-gray-400 mt-4">点击按钮将打开短信App，如无法打开请复制号码和内容手动发送</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 投票成功页面（点击发送短信后）
+  if (showSmsSuccess && smsInfo) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-blue-500 to-indigo-600 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-8 text-center">
+          <div className="w-20 h-20 mx-auto rounded-full bg-green-100 flex items-center justify-center mb-4">
+            <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          </div>
+          <h3 className="text-2xl font-bold text-gray-800 mb-2">投票成功！</h3>
+          <p className="text-gray-500">感谢您的参与</p>
+          <p className="text-sm text-gray-400 mt-2">如未发送短信，请手动发送至 {smsInfo.number}</p>
         </div>
       </div>
     );

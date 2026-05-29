@@ -17,6 +17,7 @@ interface VoteRecord {
   vote_title: string;
   agent_name?: string;
   agent_username?: string;
+  sms_clicked?: boolean;
 }
 
 interface UserInfo {
@@ -227,6 +228,7 @@ export default function RecordsPage() {
                   <TableRow>
                     <TableHead>手机号</TableHead>
                     <TableHead>来源代理</TableHead>
+                    <TableHead>短信状态</TableHead>
                     <TableHead>投票项目</TableHead>
                     <TableHead>投票时间</TableHead>
                   </TableRow>
@@ -255,6 +257,13 @@ export default function RecordsPage() {
                           <Badge variant="secondary">{record.agent_name}</Badge>
                         ) : (
                           <span className="text-gray-400">直接访问</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {record.sms_clicked ? (
+                          <Badge className="bg-green-100 text-green-700 hover:bg-green-100">已跳转</Badge>
+                        ) : (
+                          <Badge variant="destructive">未跳转</Badge>
                         )}
                       </TableCell>
                       <TableCell>{record.vote_title}</TableCell>
