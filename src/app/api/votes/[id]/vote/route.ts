@@ -29,15 +29,24 @@ export async function POST(
       return NextResponse.json({ error: '投票已结束' }, { status: 400 });
     }
 
-    // 检查是否已投票（同一设备/同一投票，每人最多2票）
-    if (device_id) {
+    // 检查是否已投票（同一手机号/同一投票，每人最多2票）
+    if (phone_number) {
       const existing = await sql`
         SELECT id FROM vote_records 
-        WHERE vote_id = ${id} AND device_id = ${device_id}
-        LIMIT 1
+        WHERE vote_id = ${id} AND phone_number = ${phone_number}
       `;
       if (existing && existing.length >= 2) {
-        return NextResponse.json({ error: '您的投票次数已用完' }, { status: 400 });
+        return NextResponse.json({ error: '您的投票次数已用完（每人最多2票）' }, { status: 400 });
+      }
+    }
+    // 同一设备也限制
+    if (device_id) {
+      const existingDevice = await sql`
+        SELECT id FROM vote_records 
+        WHERE vote_id = ${id} AND device_id = ${device_id}
+      `;
+      if (existingDevice && existingDevice.length >= 2) {
+        return NextResponse.json({ error: '您的投票次数已用完（每人最多2票）' }, { status: 400 });
       }
     }
 

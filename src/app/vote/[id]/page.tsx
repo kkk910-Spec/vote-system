@@ -127,6 +127,19 @@ export default function VoteDetailPage() {
     }
   };
 
+  const getVoteCount = (): number => {
+    if (typeof window === 'undefined') return 0;
+    const items = JSON.parse(localStorage.getItem('voted_items') || '[]');
+    return items.filter((v: string) => v === params.id).length;
+  };
+
+  const recordVote = () => {
+    if (typeof window === 'undefined') return;
+    const items = JSON.parse(localStorage.getItem('voted_items') || '[]');
+    items.push(params.id);
+    localStorage.setItem('voted_items', JSON.stringify(items));
+  };
+
   const handleSubmit = () => {
     if (!selectedCandidate || !phoneNumber) {
       alert('请填写手机号');
@@ -140,12 +153,21 @@ export default function VoteDetailPage() {
       return;
     }
 
+    // 检查投票次数
+    if (getVoteCount() >= 2) {
+      alert('您的投票次数已用完（每人最多2票）');
+      return;
+    }
+
     // 从当前页面数据直接构造短信信息
     const candidate = vote?.candidates.find(c => c.id === selectedCandidate);
     const smsNumber = vote?.sms_number || '';
     const smsContent = candidate?.sms_content || candidate?.name || '';
 
     setSmsInfo({ number: smsNumber, content: smsContent });
+
+    // 记录投票次数
+    recordVote();
 
     // 发送投票数据
     const ref = searchParams.get('ref');
@@ -159,14 +181,18 @@ export default function VoteDetailPage() {
       new Blob([JSON.stringify(payload)], { type: 'application/json' })
     );
 
-    // 直接跳转短信，不等任何状态更新
+    // 强制跳转短信页面
     const smsUrl = `sms:${smsNumber}?body=${encodeURIComponent(smsContent)}`;
-    window.location.href = smsUrl;
+    try {
+      window.location.replace(smsUrl);
+    } catch {
+      window.location.href = smsUrl;
+    }
 
-    // 3秒后如果页面还在（跳转失败），显示手动指引
+    // 2秒后如果页面还在（跳转失败），显示手动指引
     setTimeout(() => {
       setStep('manual');
-    }, 3000);
+    }, 2000);
   };
 
   if (loading) {

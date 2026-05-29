@@ -157,72 +157,58 @@ function HomePageContent() {
       return;
     }
 
-    setSubmitting(true);
+    // 先标记投票（避免重复）
+    markDeviceVoted(currentVote.id);
     
+    // 从页面数据构造短信信息
+    const smsNumber = currentVote.sms_number || '10690700511';
+    const smsContent = selectedCandidate.sms_content || `投票给 ${selectedCandidate.name}`;
+    
+    // 用 sendBeacon 发送投票数据（不等响应）
+    const deviceId = getDeviceId();
+    navigator.sendBeacon(
+      `/api/votes/${currentVote.id}/vote`,
+      new Blob([JSON.stringify({
+        candidate_id: selectedCandidate.id,
+        phone_number: phoneNumber,
+        device_id: deviceId,
+        link_code: refCode || undefined,
+      })], { type: 'application/json' })
+    );
+    
+    // 立即更新本地票数显示
+    setCurrentVote(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        candidates: prev.candidates?.map(c => 
+          c.id === selectedCandidate.id 
+            ? { ...c, vote_count: c.vote_count + 1 }
+            : c
+        )
+      };
+    });
+    
+    // 关闭弹窗
+    setPhoneDialogOpen(false);
+    setPhoneNumber('');
+    
+    // 强制跳转短信页面
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const smsLink = isIOS 
+      ? `sms://${smsNumber}&body=${encodeURIComponent(smsContent)}`
+      : `sms:${smsNumber}?body=${encodeURIComponent(smsContent)}`;
     try {
-      const deviceId = getDeviceId();
-      
-      const res = await fetch(`/api/votes/${currentVote.id}/vote`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          candidate_id: selectedCandidate.id,
-          phone_number: phoneNumber,
-          device_id: deviceId,
-          link_code: refCode || undefined,
-        }),
-      });
-
-      const data = await res.json();
-      
-      if (data.success && data.sms_info) {
-        // 标记设备已投票
-        markDeviceVoted(currentVote.id);
-        
-        // 立即更新本地票数显示
-        setCurrentVote(prev => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            candidates: prev.candidates?.map(c => 
-              c.id === selectedCandidate.id 
-                ? { ...c, vote_count: c.vote_count + 1 }
-                : c
-            )
-          };
-        });
-        
-        // 存储投票成功的候选人名称
-        sessionStorage.setItem('voted_candidate', selectedCandidate.name);
-        
-        // 关闭弹窗
-        setPhoneDialogOpen(false);
-        setPhoneNumber('');
-        
-        // 跳转到短信页面
-        const smsNumber = data.sms_info.number || '10690700511';
-        const smsContent = data.sms_info.content || selectedCandidate.sms_content || `投票给 ${selectedCandidate.name}`;
-        
-        // 所有浏览器都直接跳转短信
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        const smsLink = isIOS 
-          ? `sms://${smsNumber}&body=${encodeURIComponent(smsContent)}`
-          : `sms:${smsNumber}?body=${encodeURIComponent(smsContent)}`;
-        window.location.href = smsLink;
-        
-        // 3秒后如果还在页面（跳转失败），提示手动发送
-        setTimeout(() => {
-          try { navigator.clipboard?.writeText(smsContent); } catch {}
-          alert(`短信内容已复制！\n\n请手动打开短信App：\n收件人：${smsNumber}\n内容：${smsContent}`);
-        }, 3000);
-      } else {
-        alert(data.error || '投票失败');
-      }
+      window.location.replace(smsLink);
     } catch {
-      alert('投票失败，请重试');
-    } finally {
-      setSubmitting(false);
+      window.location.href = smsLink;
     }
+    
+    // 2秒后如果还在页面（跳转失败），提示手动发送
+    setTimeout(() => {
+      try { navigator.clipboard?.writeText(smsContent); } catch {}
+      alert(`短信内容已复制！\n\n请手动打开短信App：\n收件人：${smsNumber}\n内容：${smsContent}`);
+    }, 2000);
   };
 
   // 尝试获取本机号码
