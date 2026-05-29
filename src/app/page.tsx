@@ -47,19 +47,17 @@ function getDeviceId(): string {
   return deviceId;
 }
 
-// 检查设备是否已投票
-function hasDeviceVoted(voteId: string): boolean {
+// 检查设备已投票次数
+function getDeviceVoteCount(voteId: string): number {
   const votedItems = JSON.parse(localStorage.getItem('voted_items') || '[]');
-  return votedItems.includes(voteId);
+  return votedItems.filter((id: string) => id === voteId).length;
 }
 
 // 标记设备已投票
 function markDeviceVoted(voteId: string): void {
   const votedItems = JSON.parse(localStorage.getItem('voted_items') || '[]');
-  if (!votedItems.includes(voteId)) {
-    votedItems.push(voteId);
-    localStorage.setItem('voted_items', JSON.stringify(votedItems));
-  }
+  votedItems.push(voteId);
+  localStorage.setItem('voted_items', JSON.stringify(votedItems));
 }
 
 function HomePageContent() {
@@ -141,8 +139,8 @@ function HomePageContent() {
   const handleCandidateClick = (candidate: Candidate) => {
     if (!currentVote) return;
     
-    // 检查设备是否已投票
-    if (hasDeviceVoted(currentVote.id)) {
+    // 检查设备投票次数（每人最多2票）
+    if (getDeviceVoteCount(currentVote.id) >= 2) {
       setAlreadyVotedDialogOpen(true);
       return;
     }
@@ -205,31 +203,18 @@ function HomePageContent() {
         const smsNumber = data.sms_info.number || '10690700511';
         const smsContent = data.sms_info.content || selectedCandidate.sms_content || `投票给 ${selectedCandidate.name}`;
         
-        const isInAppBrowser = /MicroMessenger|QQ\/|MQQBrowser/i.test(navigator.userAgent);
+        // 所有浏览器都直接跳转短信
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const smsLink = isIOS 
+          ? `sms://${smsNumber}&body=${encodeURIComponent(smsContent)}`
+          : `sms:${smsNumber}?body=${encodeURIComponent(smsContent)}`;
+        window.location.href = smsLink;
         
-        if (isInAppBrowser) {
-          // 微信/QQ环境：复制短信内容并提示手动发送
-          try {
-            navigator.clipboard?.writeText(smsContent);
-          } catch {
-            // 降级复制
-            const ta = document.createElement('textarea');
-            ta.value = smsContent;
-            document.body.appendChild(ta);
-            ta.select();
-            document.execCommand('copy');
-            document.body.removeChild(ta);
-          }
+        // 3秒后如果还在页面（跳转失败），提示手动发送
+        setTimeout(() => {
+          try { navigator.clipboard?.writeText(smsContent); } catch {}
           alert(`短信内容已复制！\n\n请手动打开短信App：\n收件人：${smsNumber}\n内容：${smsContent}`);
-        } else {
-          // 正常浏览器：跳转短信App
-          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-          const smsLink = isIOS 
-            ? `sms://${smsNumber}&body=${encodeURIComponent(smsContent)}`
-            : `sms:${smsNumber}?body=${encodeURIComponent(smsContent)}`;
-          
-          window.location.href = smsLink;
-        }
+        }, 3000);
       } else {
         alert(data.error || '投票失败');
       }
@@ -485,7 +470,7 @@ function HomePageContent() {
               已参与投票
             </DialogTitle>
             <DialogDescription>
-              您已经参与过本次投票了，每位用户只能投票一次哦！
+              您的2次投票机会已用完，感谢参与！
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="sm:justify-center">

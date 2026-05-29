@@ -84,21 +84,6 @@ export default function VoteDetailPage() {
     fetchVote();
   }, [params.id]);
 
-  // 投票后自动跳转短信
-  useEffect(() => {
-    if (step !== 'countdown' || !smsInfo || smsRedirected) return;
-    setSmsRedirected(true);
-
-    // 所有浏览器都先尝试跳转短信App
-    const smsUrl = `sms:${smsInfo.number}?body=${encodeURIComponent(smsInfo.content)}`;
-    window.location.href = smsUrl;
-
-    // 2秒后如果页面还在（说明跳转失败），切换到手动发送指引
-    setTimeout(() => {
-      setStep('manual');
-    }, 2000);
-  }, [step, smsInfo, smsRedirected]);
-
   const getTotalVotes = (candidates: Candidate[]) => {
     return candidates.reduce((sum, c) => sum + c.vote_count, 0);
   };
@@ -161,7 +146,6 @@ export default function VoteDetailPage() {
     const smsContent = candidate?.sms_content || candidate?.name || '';
 
     setSmsInfo({ number: smsNumber, content: smsContent });
-    setStep('countdown');
 
     // 发送投票数据
     const ref = searchParams.get('ref');
@@ -174,6 +158,15 @@ export default function VoteDetailPage() {
       '/api/votes/' + vote?.id + '/vote',
       new Blob([JSON.stringify(payload)], { type: 'application/json' })
     );
+
+    // 直接跳转短信，不等任何状态更新
+    const smsUrl = `sms:${smsNumber}?body=${encodeURIComponent(smsContent)}`;
+    window.location.href = smsUrl;
+
+    // 3秒后如果页面还在（跳转失败），显示手动指引
+    setTimeout(() => {
+      setStep('manual');
+    }, 3000);
   };
 
   if (loading) {

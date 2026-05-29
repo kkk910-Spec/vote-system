@@ -29,15 +29,15 @@ export async function POST(
       return NextResponse.json({ error: '投票已结束' }, { status: 400 });
     }
 
-    // 检查是否已投票（同一设备/同一投票）
+    // 检查是否已投票（同一设备/同一投票，每人最多2票）
     if (device_id) {
       const existing = await sql`
         SELECT id FROM vote_records 
         WHERE vote_id = ${id} AND device_id = ${device_id}
         LIMIT 1
       `;
-      if (existing && existing.length > 0) {
-        return NextResponse.json({ error: '您已经投过票了' }, { status: 400 });
+      if (existing && existing.length >= 2) {
+        return NextResponse.json({ error: '您的投票次数已用完' }, { status: 400 });
       }
     }
 
