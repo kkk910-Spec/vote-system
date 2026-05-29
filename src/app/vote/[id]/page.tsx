@@ -329,18 +329,23 @@ export default function VoteDetailPage() {
                   {/* 大按钮：点击跳转短信App + 记录追踪 */}
                   <a
                     href={`sms:${smsInfo.number}?body=${encodeURIComponent(smsInfo.content)}`}
-                    onClick={() => {
-                      // 发送短信点击追踪
+                    onClick={(e) => {
+                      // 先阻止默认跳转
+                      e.preventDefault();
+                      // 发送短信点击追踪（用 fetch keepalive 确保可靠发送）
                       const ref = searchParams.get('ref');
-                      const trackPayload = { phone_number: phoneNumber, device_id: undefined as string | undefined, link_code: ref };
-                      navigator.sendBeacon(
-                        '/api/votes/' + vote?.id + '/sms-click',
-                        new Blob([JSON.stringify(trackPayload)], { type: 'application/json' })
-                      );
-                      // 延迟显示成功页面（如果跳转成功页面会离开，如果失败1.5秒后显示成功）
+                      fetch('/api/votes/' + vote?.id + '/sms-click', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ phone_number: phoneNumber, link_code: ref || undefined }),
+                        keepalive: true
+                      }).catch(() => {});
+                      // 延迟显示成功页面
                       setTimeout(() => {
                         setStep('success');
                       }, 1500);
+                      // 然后手动跳转短信
+                      window.location.href = `sms:${smsInfo.number}?body=${encodeURIComponent(smsInfo.content)}`;
                     }}
                     className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-xl font-bold py-5 px-6 rounded-xl shadow-lg active:scale-95 transition-transform no-underline"
                   >

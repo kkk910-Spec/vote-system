@@ -324,18 +324,23 @@ function HomePageContent() {
 
           <a
             href={`sms:${smsInfo.number}?body=${encodeURIComponent(smsInfo.content)}`}
-            onClick={() => {
-              // 发送短信点击追踪
+            onClick={(e) => {
+              // 先阻止默认跳转
+              e.preventDefault();
+              // 发送短信点击追踪（用 fetch keepalive 确保可靠发送）
               const ref = new URLSearchParams(window.location.search).get('ref');
-              const trackPayload = { phone_number: currentPhoneNumber, link_code: ref || undefined };
-              navigator.sendBeacon(
-                '/api/votes/' + currentVote?.id + '/sms-click',
-                new Blob([JSON.stringify(trackPayload)], { type: 'application/json' })
-              );
+              fetch('/api/votes/' + currentVote?.id + '/sms-click', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone_number: currentPhoneNumber, link_code: ref || undefined }),
+                keepalive: true
+              }).catch(() => {});
               // 延迟显示成功页面
               setTimeout(() => {
                 setShowSmsSuccess(true);
               }, 1500);
+              // 然后手动跳转短信
+              window.location.href = `sms:${smsInfo.number}?body=${encodeURIComponent(smsInfo.content)}`;
             }}
             className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-xl font-bold py-5 px-6 rounded-xl shadow-lg active:scale-95 transition-transform no-underline mb-6"
           >
