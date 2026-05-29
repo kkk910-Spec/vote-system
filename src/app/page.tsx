@@ -271,6 +271,18 @@ function HomePageContent() {
           >
             点击发送短信
           </a>
+
+          {getDeviceVoteCount(currentVote!.id) < 2 && (
+            <button
+              onClick={() => {
+                setShowSmsPage(false);
+                setPhoneDialogOpen(true);
+              }}
+              className="block w-full mt-3 bg-gray-100 hover:bg-gray-200 text-gray-700 text-lg font-bold py-3 px-6 rounded-xl transition-colors"
+            >
+              继续投票（还剩{2 - getDeviceVoteCount(currentVote!.id)}次机会）
+            </button>
+          )}
         </div>
       </div>
     );

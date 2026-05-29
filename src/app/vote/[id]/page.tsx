@@ -208,6 +208,19 @@ export default function VoteDetailPage() {
           >
             点击发送短信
           </a>
+
+          {getVoteCount() < 2 && (
+            <button
+              onClick={() => {
+                setSelectedCandidate('');
+                setPhoneNumber('');
+                setStep('select');
+              }}
+              className="block w-full mt-3 bg-gray-100 hover:bg-gray-200 text-gray-700 text-lg font-bold py-3 px-6 rounded-xl transition-colors"
+            >
+              继续投票（还剩{2 - getVoteCount()}次机会）
+            </button>
+          )}
         </div>
       </div>
     );
