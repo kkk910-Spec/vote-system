@@ -68,6 +68,7 @@ function HomePageContent() {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [phoneDialogOpen, setPhoneDialogOpen] = useState(false);
   const [showSmsPage, setShowSmsPage] = useState(false);
+  const [waitingSmsReturn, setWaitingSmsReturn] = useState(false);
   const [smsInfo, setSmsInfo] = useState<{ number: string; content: string }>({ number: '', content: '' });
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(true);
@@ -108,6 +109,17 @@ function HomePageContent() {
       }).catch(() => {});
     }
   }, [refCode]);
+
+  // 监听用户从短信App返回
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && waitingSmsReturn) {
+        setWaitingSmsReturn(false);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [waitingSmsReturn]);
 
   const fetchVotes = async () => {
     try {
@@ -207,8 +219,9 @@ function HomePageContent() {
     // 检测iOS
     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
     if (isIOS) {
-      // iOS：显示发送短信页面
+      // iOS：显示发送短信页面，等用户从短信返回后再显示成功
       setSmsInfo({ number, content });
+      setWaitingSmsReturn(true);
       setShowSmsPage(true);
     } else {
       // 安卓：直接跳转短信App
@@ -248,6 +261,36 @@ function HomePageContent() {
 
   if (showSmsPage) {
     const smsUrl = `sms:${smsInfo.number}?body=${encodeURIComponent(smsInfo.content)}`;
+    if (waitingSmsReturn) {
+      // 等待用户从短信App返回
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-8 text-center">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-3">请发送短信</h2>
+            <p className="text-gray-500 mb-6">正在跳转短信页面，发送完成后返回即可</p>
+
+            <div className="bg-blue-50 rounded-xl p-4 mb-6">
+              <p className="text-sm text-gray-500 mb-1">短信内容</p>
+              <p className="text-xl font-bold text-blue-600">{smsInfo.content}</p>
+            </div>
+
+            <a
+              ref={smsLinkRef}
+              href={smsUrl}
+              className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-xl font-bold py-4 px-6 rounded-xl transition-colors"
+            >
+              点击发送短信
+            </a>
+          </div>
+        </div>
+      );
+    }
+    // 用户从短信App返回后显示投票成功
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-8 text-center">
@@ -257,28 +300,16 @@ function HomePageContent() {
             </svg>
           </div>
           <h2 className="text-2xl font-bold text-gray-800 mb-3">投票成功</h2>
-          <p className="text-gray-500 mb-6">正在跳转短信页面...</p>
-
-          <div className="bg-blue-50 rounded-xl p-4 mb-6">
-            <p className="text-sm text-gray-500 mb-1">短信内容</p>
-            <p className="text-xl font-bold text-blue-600">{smsInfo.content}</p>
-          </div>
-
-          <a
-            ref={smsLinkRef}
-            href={smsUrl}
-            className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-xl font-bold py-4 px-6 rounded-xl transition-colors"
-          >
-            点击发送短信
-          </a>
+          <p className="text-gray-500 mb-6">感谢您的参与！</p>
 
           {getDeviceVoteCount(currentVote!.id) < 2 && (
             <button
               onClick={() => {
                 setShowSmsPage(false);
+                setWaitingSmsReturn(false);
                 setPhoneDialogOpen(true);
               }}
-              className="block w-full mt-3 bg-gray-100 hover:bg-gray-200 text-gray-700 text-lg font-bold py-3 px-6 rounded-xl transition-colors"
+              className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-lg font-bold py-3 px-6 rounded-xl transition-colors"
             >
               继续投票（还剩{2 - getDeviceVoteCount(currentVote!.id)}次机会）
             </button>

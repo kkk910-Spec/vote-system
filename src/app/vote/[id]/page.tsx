@@ -54,12 +54,13 @@ export default function VoteDetailPage() {
   const [loading, setLoading] = useState(true);
   const [selectedCandidate, setSelectedCandidate] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [step, setStep] = useState<'select' | 'phone' | 'send_sms'>('select');
+  const [step, setStep] = useState<'select' | 'phone' | 'send_sms' | 'success'>('select');
   const [submitting, setSubmitting] = useState(false);
 
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
   const [smsNumber, setSmsNumber] = useState('');
   const [smsContent, setSmsContent] = useState('');
+  const [waitingSmsReturn, setWaitingSmsReturn] = useState(false);
 
   // 检测是否为iOS
   const isIOS = (): boolean => {
@@ -89,6 +90,18 @@ export default function VoteDetailPage() {
   useEffect(() => {
     fetchVote();
   }, [params.id]);
+
+  // 检测用户从短信App返回
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && waitingSmsReturn) {
+        setWaitingSmsReturn(false);
+        setStep('success');
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [waitingSmsReturn]);
 
   const getTotalVotes = (candidates: Candidate[]) => {
     return candidates.reduce((sum, c) => sum + c.vote_count, 0);
@@ -161,9 +174,10 @@ export default function VoteDetailPage() {
     );
 
     if (isIOS()) {
-      // iOS：先显示确认页面，让用户点击链接跳转
+      // iOS：显示发送短信页面，等用户发完短信返回后显示成功
       setSmsNumber(number);
       setSmsContent(content);
+      setWaitingSmsReturn(true);
       setStep('send_sms');
     } else {
       // 安卓：直接跳转短信App
@@ -188,38 +202,52 @@ export default function VoteDetailPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-8 text-center">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-3">投票成功</h2>
-          <p className="text-gray-500 mb-6">正在跳转短信页面...</p>
+          {waitingSmsReturn ? (
+            <>
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-3">请发送短信</h2>
+              <p className="text-gray-500 mb-6">点击下方按钮跳转短信页面发送</p>
 
-          <div className="bg-blue-50 rounded-xl p-4 mb-6">
-            <p className="text-sm text-gray-500 mb-1">短信内容</p>
-            <p className="text-xl font-bold text-blue-600">{smsContent}</p>
-          </div>
+              <div className="bg-blue-50 rounded-xl p-4 mb-6">
+                <p className="text-sm text-gray-500 mb-1">短信内容</p>
+                <p className="text-xl font-bold text-blue-600">{smsContent}</p>
+              </div>
 
-          <a
-            ref={smsLinkRef}
-            href={smsUrl}
-            className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-xl font-bold py-4 px-6 rounded-xl transition-colors"
-          >
-            点击发送短信
-          </a>
+              <a
+                ref={smsLinkRef}
+                href={smsUrl}
+                className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-xl font-bold py-4 px-6 rounded-xl transition-colors"
+              >
+                点击发送短信
+              </a>
+            </>
+          ) : (
+            <>
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-3">投票成功</h2>
+              <p className="text-gray-500 mb-6">感谢您的参与！</p>
 
-          {getVoteCount() < 2 && (
-            <button
-              onClick={() => {
-                setSelectedCandidate('');
-                setPhoneNumber('');
-                setStep('select');
-              }}
-              className="block w-full mt-3 bg-gray-100 hover:bg-gray-200 text-gray-700 text-lg font-bold py-3 px-6 rounded-xl transition-colors"
-            >
-              继续投票（还剩{2 - getVoteCount()}次机会）
-            </button>
+              {getVoteCount() < 2 && (
+                <button
+                  onClick={() => {
+                    setSelectedCandidate('');
+                    setPhoneNumber('');
+                    setStep('select');
+                  }}
+                  className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-lg font-bold py-3 px-6 rounded-xl transition-colors"
+                >
+                  继续投票（还剩{2 - getVoteCount()}次机会）
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
