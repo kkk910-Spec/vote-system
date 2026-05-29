@@ -54,7 +54,7 @@ export default function VoteDetailPage() {
   const [loading, setLoading] = useState(true);
   const [selectedCandidate, setSelectedCandidate] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [step, setStep] = useState<'select' | 'phone' | 'countdown' | 'manual'>('select');
+  const [step, setStep] = useState<'select' | 'phone' | 'send_sms'>('select');
   const [submitting, setSubmitting] = useState(false);
   const [smsInfo, setSmsInfo] = useState<{ number: string; content: string } | null>(null);
   const [countdown, setCountdown] = useState(5);
@@ -181,18 +181,8 @@ export default function VoteDetailPage() {
       new Blob([JSON.stringify(payload)], { type: 'application/json' })
     );
 
-    // 强制跳转短信页面
-    const smsUrl = `sms:${smsNumber}?body=${encodeURIComponent(smsContent)}`;
-    try {
-      window.location.replace(smsUrl);
-    } catch {
-      window.location.href = smsUrl;
-    }
-
-    // 2秒后如果页面还在（跳转失败），显示手动指引
-    setTimeout(() => {
-      setStep('manual');
-    }, 2000);
+    // 直接显示发送短信页面（用<a>标签点击跳转，兼容QQ/微信浏览器）
+    setStep('send_sms');
   };
 
   if (loading) {
@@ -324,61 +314,50 @@ export default function VoteDetailPage() {
               </div>
             </div>
 
-            {/* 倒计时自动跳转页面 */}
-            {step === 'countdown' && smsInfo && (
+            {/* 发送短信页面 */}
+            {step === 'send_sms' && smsInfo && (
               <div className="space-y-6">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
-                  <div className="mb-4">
-                    <div className="w-16 h-16 mx-auto rounded-full bg-blue-100 flex items-center justify-center mb-4 animate-pulse">
-                      <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
-                    </div>
-                    <h3 className="text-xl font-bold text-blue-800">正在跳转短信...</h3>
-                    <p className="text-blue-600 mt-2">如果未自动跳转，即将显示手动发送指引</p>
-                  </div>
-                  <div className="bg-white rounded-lg p-4">
-                    <p className="text-sm text-gray-500 mb-1">短信内容</p>
-                    <p className="font-bold text-lg">{smsInfo.content}</p>
-                    <p className="text-sm text-gray-500 mt-2">收件人：{smsInfo.number}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* 手动发送短信指引页面（跳转失败时显示） */}
-            {step === 'manual' && smsInfo && (
-              <div className="space-y-6">
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-8 text-center">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-8 text-center">
                   <div className="mb-6">
-                    <div className="w-16 h-16 mx-auto rounded-full bg-amber-100 flex items-center justify-center mb-4">
-                      <svg className="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                    <div className="w-20 h-20 mx-auto rounded-full bg-green-100 flex items-center justify-center mb-4">
+                      <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     </div>
-                    <h3 className="text-xl font-bold text-amber-800">请手动发送短信</h3>
-                    <p className="text-amber-600 mt-2">当前环境无法直接打开短信App，请按以下步骤操作</p>
+                    <h3 className="text-2xl font-bold text-green-800">投票成功！</h3>
+                    <p className="text-green-600 mt-2">请点击下方按钮发送短信完成投票</p>
                   </div>
 
-                  <div className="bg-white rounded-lg p-5 mb-4 text-left">
-                    <p className="text-sm text-gray-500 mb-1">第一步：复制短信内容</p>
-                    <div className="flex items-center gap-2">
-                      <p className="font-bold text-lg flex-1 break-all">{smsInfo.content}</p>
-                      <Button size="sm" variant="outline" onClick={() => { copyToClipboard(smsInfo.content); }}>复制</Button>
+                  {/* 大按钮：点击直接跳转短信App */}
+                  <a
+                    href={`sms:${smsInfo.number}?body=${encodeURIComponent(smsInfo.content)}`}
+                    className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-xl font-bold py-5 px-6 rounded-xl shadow-lg active:scale-95 transition-transform no-underline"
+                  >
+                    点击发送短信
+                  </a>
+
+                  <div className="mt-6 bg-white rounded-lg p-5 text-left space-y-3">
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">收件人</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-xl flex-1">{smsInfo.number}</p>
+                        <Button size="sm" variant="outline" onClick={() => { copyToClipboard(smsInfo.number); alert('号码已复制'); }}>复制</Button>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">短信内容</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-xl flex-1 break-all">{smsInfo.content}</p>
+                        <Button size="sm" variant="outline" onClick={() => { copyToClipboard(smsInfo.content); alert('内容已复制'); }}>复制</Button>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-lg p-5 mb-4 text-left">
-                    <p className="text-sm text-gray-500 mb-1">第二步：复制号码并打开短信App</p>
-                    <div className="flex items-center gap-2">
-                      <p className="font-bold text-lg flex-1">{smsInfo.number}</p>
-                      <Button size="sm" variant="outline" onClick={() => { copyToClipboard(smsInfo.number); }}>复制</Button>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-gray-500 mt-4">打开手机短信App → 新建短信 → 粘贴号码和内容 → 发送</p>
+                  <p className="text-xs text-gray-400 mt-4">点击按钮将打开短信App，如无法打开请复制号码和内容手动发送</p>
                 </div>
               </div>
             )}
 
             {/* 选择和填写手机号页面 */}
-            {step !== 'countdown' && step !== 'manual' && (
+            {step !== 'send_sms' && (
               <>
                 {/* 候选人列表 */}
                 <div className="space-y-3 mb-6">

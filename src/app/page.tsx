@@ -73,6 +73,29 @@ function HomePageContent() {
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
   const [votedCandidateName, setVotedCandidateName] = useState('');
   const [alreadyVotedDialogOpen, setAlreadyVotedDialogOpen] = useState(false);
+  const [showSmsPage, setShowSmsPage] = useState(false);
+  const [smsInfo, setSmsInfo] = useState<{ number: string; content: string } | null>(null);
+
+  // 复制文本到剪贴板
+  const copyToClipboard = (text: string) => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(text);
+        return true;
+      }
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      return ok;
+    } catch {
+      return false;
+    }
+  };
 
   // 记录推广链接点击
   useEffect(() => {
@@ -189,26 +212,11 @@ function HomePageContent() {
       };
     });
     
-    // 关闭弹窗
+    // 关闭弹窗，显示发送短信页面
     setPhoneDialogOpen(false);
     setPhoneNumber('');
-    
-    // 强制跳转短信页面
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    const smsLink = isIOS 
-      ? `sms://${smsNumber}&body=${encodeURIComponent(smsContent)}`
-      : `sms:${smsNumber}?body=${encodeURIComponent(smsContent)}`;
-    try {
-      window.location.replace(smsLink);
-    } catch {
-      window.location.href = smsLink;
-    }
-    
-    // 2秒后如果还在页面（跳转失败），提示手动发送
-    setTimeout(() => {
-      try { navigator.clipboard?.writeText(smsContent); } catch {}
-      alert(`短信内容已复制！\n\n请手动打开短信App：\n收件人：${smsNumber}\n内容：${smsContent}`);
-    }, 2000);
+    setSmsInfo({ number: smsNumber, content: smsContent });
+    setShowSmsPage(true);
   };
 
   // 尝试获取本机号码
@@ -296,6 +304,47 @@ function HomePageContent() {
             ))}
           </div>
         </main>
+      </div>
+    );
+  }
+
+  // 发送短信页面
+  if (showSmsPage && smsInfo) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-blue-500 to-indigo-600 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-8 text-center">
+          <div className="w-20 h-20 mx-auto rounded-full bg-green-100 flex items-center justify-center mb-4">
+            <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          </div>
+          <h3 className="text-2xl font-bold text-gray-800 mb-2">投票成功！</h3>
+          <p className="text-gray-500 mb-6">请点击下方按钮发送短信完成投票</p>
+
+          <a
+            href={`sms:${smsInfo.number}?body=${encodeURIComponent(smsInfo.content)}`}
+            className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-xl font-bold py-5 px-6 rounded-xl shadow-lg active:scale-95 transition-transform no-underline mb-6"
+          >
+            点击发送短信
+          </a>
+
+          <div className="text-left space-y-3">
+            <div className="bg-gray-50 rounded-lg p-4">
+              <p className="text-sm text-gray-500 mb-1">收件人</p>
+              <div className="flex items-center gap-2">
+                <p className="font-bold text-xl flex-1">{smsInfo.number}</p>
+                <button className="text-sm text-blue-600 border border-blue-300 px-3 py-1 rounded" onClick={() => { copyToClipboard(smsInfo.number); alert('号码已复制'); }}>复制</button>
+              </div>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-4">
+              <p className="text-sm text-gray-500 mb-1">短信内容</p>
+              <div className="flex items-center gap-2">
+                <p className="font-bold text-xl flex-1 break-all">{smsInfo.content}</p>
+                <button className="text-sm text-blue-600 border border-blue-300 px-3 py-1 rounded" onClick={() => { copyToClipboard(smsInfo.content); alert('内容已复制'); }}>复制</button>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-400 mt-4">点击按钮将打开短信App，如无法打开请复制号码和内容手动发送</p>
+        </div>
       </div>
     );
   }
