@@ -56,7 +56,7 @@ export default function VoteDetailPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [step, setStep] = useState<'select' | 'phone'>('select');
   const [submitting, setSubmitting] = useState(false);
-  const [recordId, setRecordId] = useState<string>('');
+
   const [countdown, setCountdown] = useState(5);
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
   const [smsRedirected, setSmsRedirected] = useState(false);
@@ -115,7 +115,7 @@ export default function VoteDetailPage() {
     localStorage.setItem('voted_items', JSON.stringify(items));
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!selectedCandidate || !phoneNumber) {
       alert('请填写手机号');
       return;
@@ -142,48 +142,19 @@ export default function VoteDetailPage() {
     // 记录投票次数
     recordVote();
 
-    // 发送投票数据（用fetch等待返回record_id）
+    // sendBeacon发送投票数据（零延迟，不等待响应）
     const ref = searchParams.get('ref');
     const payload = {
       candidate_id: selectedCandidate,
       phone_number: phoneNumber,
       link_code: ref,
     };
-    let rid = '';
-    try {
-      const res = await fetch('/api/votes/' + vote?.id + '/vote', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (data.record_id) {
-        rid = data.record_id;
-        setRecordId(data.record_id);
-      }
-    } catch {
-      // 投票提交失败也继续
-    }
+    navigator.sendBeacon(
+      '/api/votes/' + vote?.id + '/vote',
+      new Blob([JSON.stringify(payload)], { type: 'application/json' })
+    );
 
-    // 记录短信跳转追踪（投票=要发短信，直接标记已跳转）
-    try {
-      const trackPayload: Record<string, string> = {};
-      if (rid) {
-        trackPayload.record_id = rid;
-      } else {
-        trackPayload.phone_number = phoneNumber;
-        if (ref) trackPayload.link_code = ref;
-      }
-      await fetch('/api/votes/' + vote?.id + '/sms-click', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(trackPayload),
-      });
-    } catch {
-      // 追踪失败不影响
-    }
-
-    // 直接跳转短信App
+    // 立即跳转短信App
     const smsUrl = `sms:${smsNumber}?body=${encodeURIComponent(smsContent)}`;
     window.location.href = smsUrl;
   };

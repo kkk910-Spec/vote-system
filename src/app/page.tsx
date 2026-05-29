@@ -74,9 +74,6 @@ function HomePageContent() {
   const [votedCandidateName, setVotedCandidateName] = useState('');
   const [alreadyVotedDialogOpen, setAlreadyVotedDialogOpen] = useState(false);
 
-  const [smsInfo, setSmsInfo] = useState<{ number: string; content: string } | null>(null);
-  const [currentPhoneNumber, setCurrentPhoneNumber] = useState('');
-  const [recordId, setRecordId] = useState('');
 
   // 复制文本到剪贴板
   const copyToClipboard = (text: string) => {
@@ -174,7 +171,7 @@ function HomePageContent() {
     setPhoneDialogOpen(true);
   };
 
-  const handlePhoneSubmit = async () => {
+  const handlePhoneSubmit = () => {
     if (!phoneNumber || !selectedCandidate || !currentVote) return;
     
     if (!/^1[3-9]\d{9}$/.test(phoneNumber)) {
@@ -189,65 +186,23 @@ function HomePageContent() {
     const smsNumber = currentVote.sms_number || '10690700511';
     const smsContent = selectedCandidate.sms_content || `投票给 ${selectedCandidate.name}`;
     
-    // 用 fetch 发送投票数据（等待返回 record_id）
+    // sendBeacon发送投票数据（零延迟，不等待响应）
     const deviceId = getDeviceId();
-    let newRecordId = '';
-    try {
-      const res = await fetch(`/api/votes/${currentVote.id}/vote`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          candidate_id: selectedCandidate.id,
-          phone_number: phoneNumber,
-          device_id: deviceId,
-          link_code: refCode || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (data.record_id) newRecordId = data.record_id;
-    } catch {
-      // 投票失败也继续
-    }
-    
-    // 立即更新本地票数显示
-    setCurrentVote(prev => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        candidates: prev.candidates?.map(c => 
-          c.id === selectedCandidate.id 
-            ? { ...c, vote_count: c.vote_count + 1 }
-            : c
-        )
-      };
-    });
+    navigator.sendBeacon(
+      `/api/votes/${currentVote.id}/vote`,
+      new Blob([JSON.stringify({
+        candidate_id: selectedCandidate.id,
+        phone_number: phoneNumber,
+        device_id: deviceId,
+        link_code: refCode || undefined,
+      })], { type: 'application/json' })
+    );
     
     // 关闭弹窗
     setPhoneDialogOpen(false);
-    setCurrentPhoneNumber(phoneNumber);
     setPhoneNumber('');
-    setSmsInfo({ number: smsNumber, content: smsContent });
-    setRecordId(newRecordId);
 
-    // 记录短信跳转追踪（投票=要发短信，直接标记已跳转）
-    try {
-      const trackPayload: Record<string, string> = {};
-      if (newRecordId) {
-        trackPayload.record_id = newRecordId;
-      } else {
-        trackPayload.phone_number = phoneNumber;
-        if (refCode) trackPayload.link_code = refCode;
-      }
-      await fetch('/api/votes/' + currentVote.id + '/sms-click', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(trackPayload),
-      });
-    } catch {
-      // 追踪失败不影响
-    }
-
-    // 直接跳转短信App
+    // 立即跳转短信App
     const smsUrl = `sms:${smsNumber}?body=${encodeURIComponent(smsContent)}`;
     window.location.href = smsUrl;
   };
